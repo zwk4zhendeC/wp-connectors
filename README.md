@@ -1,4 +1,11 @@
-wp-connectors 功能特性与编译选项
+# wp-connectors
+
+![License](https://img.shields.io/badge/License-Elastic%20License%202.0-blue)
+![CI](https://github.com/wotttow/wp-connectors/workflows/CI/badge.svg)
+![Codecov](https://codecov.io/gh/wotttow/wp-connectors/branch/main/graph/badge.svg)
+![Rust](https://img.shields.io/badge/rust-stable%2Bbeta-orange)
+
+## 功能特性与编译选项
 
 特性开关（features）
 - default = ["kafka"]：默认仅编译 Kafka 模块
@@ -27,4 +34,3 @@ wp-connectors 功能特性与编译选项
 测试
 - Kafka 相关测试使用 `#[cfg(feature = "kafka")]` 条件编译；在 `--no-default-features --features prometheus` 下不会被编译
 - 如需跳过需要 Kafka 的 E2E 测试，可设置环境变量：`SKIP_KAFKA_INTEGRATION_TESTS=1`
-
