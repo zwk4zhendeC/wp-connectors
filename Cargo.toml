@@ -6,7 +6,7 @@ members = [".",]  # 当前包作为workspace成员
 [workspace.package]
 version = "0.5.6"
 edition = "2024"
-description = "Unified Kafka connector for wp-flow system supporting both source and sink functionality"
+description = "Unified connector for warp-parse system supporting both source and sink functionality"
 authors = ["WP Labs Team"]
 license = "ELv2"
 repository = "https://github.com/wp-labs/wp-connectors"
@@ -71,7 +71,7 @@ description.workspace = true
 # 默认只编译 Kafka 相关代码；需要 Prometheus 导出器时启用 `prometheus` 特性
 #default = ["kafka"]
 default = ["kafka", "mysql", "prometheus", "victoriametric", "victorialog"]
-kafka = []
+kafka = ["dep:rdkafka-wrap"]
 mysql = []
 victorialog = []
 prometheus = [
@@ -114,7 +114,6 @@ async-trait = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 log = { workspace = true }
-rdkafka-wrap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
@@ -131,6 +130,7 @@ prometheus = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 lazy_static = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
+rdkafka-wrap =  { workspace = true , optional = true }
 
 [dev-dependencies]
 env_logger = { workspace = true }
