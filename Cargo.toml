@@ -71,7 +71,7 @@ description.workspace = true
 # 默认只编译 Kafka 相关代码；需要 Prometheus 导出器时启用 `prometheus` 特性
 #default = ["kafka"]
 default = ["kafka", "mysql", "prometheus", "victoriametric", "victorialog"]
-kafka = []
+kafka = [ "dep:rdkafka-wrap"]
 mysql = []
 victorialog = []
 prometheus = [
