@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = [".",]  # 当前包作为workspace成员
+members = ["."] # 当前包作为workspace成员
 
 
 [workspace.package]
@@ -24,9 +24,9 @@ wp-conf-base = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.5.10-be
 wp-data-fmt = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.5.10-beta" }
 
 # Custom Dependencies
-wp-schema = { git = "https://github.com/wp-labs/wp-schema.git", tag= "v0.1.4-alpha" }
+wp-schema = { git = "https://github.com/wp-labs/wp-schema.git", tag = "v0.1.4-alpha" }
 ## 上游 workspace 内部 crate 默认使用远程 git（develop 分支）。
-orion_exp = {  git = "https://github.com/galaxy-sec/orion-exp.git", tag = "v0.1.1" }
+orion_exp = { git = "https://github.com/galaxy-sec/orion-exp.git", tag = "v0.1.1" }
 
 # Core dependencies
 async-trait = "~0.1"
@@ -48,7 +48,10 @@ educe = { version = "~0.6.0", features = ["Debug", "Clone", "Copy"] }
 orion-error = "0.5.5"
 orion_conf = { version = "~0.3", features = ["yaml", "toml"] }
 
-sea-orm = { version = "~1.1", default-features = false, features = ["sqlx-mysql", "runtime-tokio-rustls"] }
+sea-orm = { version = "~1.1", default-features = false, features = [
+    "sqlx-mysql",
+    "runtime-tokio-rustls",
+] }
 
 # Optional Feature Dependencies
 actix-web = "~4.12.1"
@@ -70,10 +73,10 @@ description.workspace = true
 [features]
 # 默认只编译 Kafka 相关代码；需要 Prometheus 导出器时启用 `prometheus` 特性
 #default = ["kafka"]
-default = ["kafka", "mysql", "prometheus", "victoriametric", "victorialog"]
+default = ["kafka", "mysql", "prometheus", "victoriametric", "victorialogs"]
 kafka = ["dep:rdkafka-wrap"]
 mysql = []
-victorialog = []
+victorialogs = []
 prometheus = [
     "dep:actix-web",
     "dep:prometheus",
@@ -90,7 +93,15 @@ victoriametric = [
 ]
 elasticsearch = []
 clickhouse = []
-full = ["kafka", "mysql", "prometheus", "elasticsearch", "clickhouse", "victoriametric"]
+full = [
+    "kafka",
+    "mysql",
+    "prometheus",
+    "elasticsearch",
+    "clickhouse",
+    "victorialogs",
+    "victoriametric",
+]
 
 [dependencies]
 # WP Dependencies - using workspace versions
@@ -130,7 +141,7 @@ prometheus = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 lazy_static = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
-rdkafka-wrap =  { workspace = true , optional = true }
+rdkafka-wrap = { workspace = true, optional = true }
 
 [dev-dependencies]
 env_logger = { workspace = true }
