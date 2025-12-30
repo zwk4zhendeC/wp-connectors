@@ -12,7 +12,6 @@ use wp_connector_api::{
     SinkHandle, SinkReason, SinkResult, SinkSpec, SourceDefProvider, SourceFactory, SourceHandle,
     SourceMeta, SourceReason, SourceResult, SourceSvcIns, Tags,
 };
-use wp_model_core::model::TagSet;
 
 pub struct MySQLSourceFactory;
 
