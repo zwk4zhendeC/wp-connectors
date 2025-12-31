@@ -9,6 +9,7 @@ use wp_connector_api::{
 };
 use wp_model_core::model::fmt_def::TextFmt;
 
+use crate::WP_SRC_VAL;
 use crate::kafka::{
     KafkaSink, KafkaSource,
     config::{KafkaSinkConf, KafkaSourceConf},
@@ -23,10 +24,12 @@ fn build_kafka_conf_from_spec(
     let config = parse_config(spec.params.get("config"))?;
 
     let conf = KafkaSourceConf {
+        key: spec.name.clone(),
         brokers,
         topic: topics,
         config,
-        ..Default::default()
+        //TODO: use spec.enable
+        enable: true,
     };
     Ok((conf, group_id))
 }
@@ -240,7 +243,7 @@ impl wp_connector_api::SourceFactory for KafkaSourceFactory {
 
         let mut meta_tags = Tags::from_parse(&spec.tags);
         let access_source = spec.kind.clone();
-        meta_tags.set("access_source", access_source);
+        meta_tags.set(WP_SRC_VAL, access_source);
         let source = KafkaSource::new(spec.name.clone(), meta_tags.clone(), &group_id, &conf)
             .await
             .map_err(|err| SourceReason::Other(err.to_string()))?;

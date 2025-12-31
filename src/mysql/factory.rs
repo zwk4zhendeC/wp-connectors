@@ -13,6 +13,8 @@ use wp_connector_api::{
     SourceMeta, SourceReason, SourceResult, SourceSvcIns, Tags,
 };
 
+use crate::WP_SRC_VAL;
+
 pub struct MySQLSourceFactory;
 
 #[async_trait]
@@ -73,7 +75,7 @@ impl wp_connector_api::SourceFactory for MySQLSourceFactory {
             conf.table = Some(table.to_string());
         }
         let mut meta_tags = Tags::from_parse(&spec.tags);
-        meta_tags.set("access_source", "mysql");
+        meta_tags.set(WP_SRC_VAL, "mysql");
         let source = MysqlSource::new(spec.name.clone(), meta_tags.clone(), &conf)
             .await
             .map_err(|err| SourceReason::Other(err.to_string()))?;

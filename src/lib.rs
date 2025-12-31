@@ -1,3 +1,6 @@
+/// Tag key for access source identifier
+pub const WP_SRC_VAL: &str = "wp_src_val";
+
 // Kafka：默认启用（feature = "kafka" 是默认特性）
 #[cfg(feature = "kafka")]
 pub mod kafka;

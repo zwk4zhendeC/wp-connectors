@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use wp_parse_api::RawData;
 
+use crate::WP_SRC_VAL;
 use wp_connector_api::{
     DataSource, SourceBatch, SourceError, SourceEvent, SourceReason, SourceResult, Tags,
 };
@@ -66,9 +67,8 @@ impl KafkaSource {
             .await
             .map(|msg| {
                 let payload = Bytes::copy_from_slice(msg.payload().unwrap_or(&[]));
-                // 转换标签为 Tags
                 let mut stags = self.tags.clone();
-                stags.set("access_source", msg.topic().to_string());
+                stags.set(WP_SRC_VAL, msg.topic().to_string());
                 self.event_seq = self.event_seq.wrapping_add(1);
                 let event_id = self.event_seq;
                 vec![SourceEvent::new(

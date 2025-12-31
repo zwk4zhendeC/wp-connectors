@@ -1,5 +1,6 @@
 #![allow(dead_code)] // Prometheus 指标辅助函数仅在特定集成开启
 
+use crate::WP_SRC_VAL;
 use lazy_static::lazy_static;
 use orion_exp::ValueGet0;
 use wp_model_core::model::data::Field as ModelField;
@@ -42,7 +43,7 @@ pub(crate) fn source_values(data: &DataRecord, format: &str) -> (RecvMetrics, i6
             recv_metrics.source_type = caps["source_type"].to_string();
         }
     }
-    if let Some(Value::Chars(f)) = data.get2("access_source").opt().get_value() {
+    if let Some(Value::Chars(f)) = data.get2(WP_SRC_VAL).opt().get_value() {
         recv_metrics.access_source = f.to_string();
     }
     if let Some(Value::Digit(f)) = data.get2("total").opt().get_value() {
