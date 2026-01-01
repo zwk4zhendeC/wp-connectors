@@ -56,7 +56,7 @@ pub(crate) fn parse_success(data: &DataRecord) -> (ParseMetrics, u64) {
     let mut parse_metrics = ParseMetrics::new();
     let mut count = 0;
     if let Some(Value::Chars(f)) = data.get2("target").opt().get_value() {
-        parse_metrics.rule_name = f.clone();
+        parse_metrics.rule_name = f.to_string();
     }
     parse_metrics.extend_metrics(data);
     if let Some(Value::Digit(f)) = data.get2("success").opt().get_value() {
@@ -137,10 +137,10 @@ macro_rules! generate_extend_metrics {
     ($name:ident; $($field:ident), *) => {
         generate_metrics!($name; $($field), *);
         impl $name { pub fn extend_metrics(&mut self, data: &DataRecord) {
-            if let Some(Value::Chars(f)) = data.get2("pos_sn").opt().get_value() { self.pos_sn = f.clone(); }
-            if let Some(Value::Chars(f)) = data.get2("access_ip").opt().get_value() { self.access_ip = f.clone(); }
-            if let Some(Value::Chars(f)) = data.get2("log_desc").opt().get_value() { self.log_desc = f.clone(); }
-            if let Some(Value::Chars(f)) = data.get2("log_type").opt().get_value() { self.log_type = f.clone(); }
+            if let Some(Value::Chars(f)) = data.get2("pos_sn").opt().get_value() { self.pos_sn = f.to_string(); }
+            if let Some(Value::Chars(f)) = data.get2("access_ip").opt().get_value() { self.access_ip = f.to_string(); }
+            if let Some(Value::Chars(f)) = data.get2("log_desc").opt().get_value() { self.log_desc = f.to_string(); }
+            if let Some(Value::Chars(f)) = data.get2("log_type").opt().get_value() { self.log_type = f.to_string(); }
         }}
     }
 }
