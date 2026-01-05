@@ -13,14 +13,14 @@ homepage = "https://github.com/wp-labs/wp-connectors"
 
 [workspace.dependencies]
 # WP Core Dependencies - 使用模板变量
-wp-connector-api = { git = "{{GIT_REPO_SVR}}/wp-open-api", tag = "{{OPEN_API_VER}}" }
-wp-parse-api = { git = "{{GIT_REPO_SVR}}/wp-open-api", tag = "{{OPEN_API_VER}}" }
-wp-model-core = { git = "{{GIT_REPO_SVR}}/wp-open-api", tag = "{{OPEN_API_VER}}" }
-wp-log = { git = "{{GIT_REPO_SVR}}/wp-infras", tag = "{{WP_IFS_VER}}" }
-wp-error = { git = "{{GIT_REPO_SVR}}/wp-infras", tag = "{{WP_IFS_VER}}" }
-wp-specs = { git = "{{GIT_REPO_SVR}}/wp-infras", tag = "{{WP_IFS_VER}}" }
-wp-conf-base = { git = "{{GIT_REPO_SVR}}/wp-infras", tag = "{{WP_IFS_VER}}" }
-wp-data-fmt = { git = "{{GIT_REPO_SVR}}/wp-infras", tag = "{{WP_IFS_VER}}" }
+wp-connector-api = { git = "{{GIT_REPO_SVR}}/wp-open-api", {{GIT_REF}}= "{{OPEN_API_VER}}" }
+wp-parse-api = { git = "{{GIT_REPO_SVR}}/wp-open-api", {{GIT_REF}} = "{{OPEN_API_VER}}" }
+wp-model-core = { git = "{{GIT_REPO_SVR}}/wp-open-api", {{GIT_REF}} = "{{OPEN_API_VER}}" }
+wp-log = { git = "{{GIT_REPO_SVR}}/wp-infras", {{GIT_REF}} = "{{WP_IFS_VER}}" }
+wp-error = { git = "{{GIT_REPO_SVR}}/wp-infras", {{GIT_REF}} = "{{WP_IFS_VER}}" }
+wp-specs = { git = "{{GIT_REPO_SVR}}/wp-infras", {{GIT_REF}} = "{{WP_IFS_VER}}" }
+wp-conf-base = { git = "{{GIT_REPO_SVR}}/wp-infras", {{GIT_REF}} = "{{WP_IFS_VER}}" }
+wp-data-fmt = { git = "{{GIT_REPO_SVR}}/wp-infras", {{GIT_REF}} = "{{WP_IFS_VER}}" }
 
 wp-schema = { git = "https://github.com/wp-labs/wp-schema.git", tag= "v0.1.4-alpha" }
 orion_exp = {  git = "https://github.com/galaxy-sec/orion-exp.git", tag = "v0.1.1" }
@@ -40,7 +40,7 @@ toml = "~0.9"
 tokio = { version = "~1.48", features = ["full"] }
 bytes = "~1.11.0"
 winnow = "~0.7"
-educe = { version = "~0.4", default-features = false }
+educe = { version = "~0.6", default-features = false, features = ["Debug", "Default"] }
 sea-orm = { version = "~1.1", default-features = false, features = ["sqlx-mysql", "runtime-tokio-rustls"] }
 
 # Optional Feature Dependencies
