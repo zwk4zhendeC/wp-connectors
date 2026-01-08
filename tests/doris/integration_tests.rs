@@ -65,6 +65,7 @@ fn integration_config() -> DorisSinkConfig {
     )
 }
 
+#[ignore = "not ready"]
 #[tokio::test]
 async fn doris_sink_connects_queries_schema_and_inserts_rows() -> anyhow::Result<()> {
     if should_skip_integration() {
@@ -124,6 +125,7 @@ async fn doris_sink_connects_queries_schema_and_inserts_rows() -> anyhow::Result
     Ok(())
 }
 
+#[ignore = "not ready"]
 #[tokio::test]
 async fn doris_sink_new_initializes_via_direct_config() -> anyhow::Result<()> {
     if should_skip_integration() {

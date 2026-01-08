@@ -3,7 +3,7 @@ resolver = "2"
 members = [".",]  # 当前包作为workspace成员
 
 [workspace.package]
-version = "0.7.1"
+version = "0.7.2"
 edition = "2024"
 description = "Unified Kafka connector for wp-flow system supporting both source and sink functionality"
 authors = ["WP Labs Team"]
@@ -13,46 +13,48 @@ homepage = "https://github.com/wp-labs/wp-connectors"
 
 [workspace.dependencies]
 # WP Core Dependencies - 使用模板变量
-wp-connector-api = { git = "https://github.com/wp-labs/wp-open-api", tag= "v0.7.0-beta" }
-wp-parse-api = { git = "https://github.com/wp-labs/wp-open-api", tag = "v0.7.0-beta" }
-wp-model-core = { git = "https://github.com/wp-labs/wp-open-api", tag = "v0.7.0-beta" }
-wp-log = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.0-beta" }
-wp-error = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.0-beta" }
-wp-specs = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.0-beta" }
-wp-conf-base = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.0-beta" }
-wp-data-fmt = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.0-beta" }
+wp-connector-api = { git = "https://github.com/wp-labs/wp-open-api", tag= "v0.7.0" }
+wp-parse-api = { git = "https://github.com/wp-labs/wp-open-api", tag = "v0.7.0" }
+wp-model-core = { git = "https://github.com/wp-labs/wp-open-api", tag = "v0.7.0" }
+wp-log = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.1" }
+wp-error = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.1" }
+wp-specs = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.1" }
+wp-conf-base = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.1" }
+wp-data-fmt = { git = "https://github.com/wp-labs/wp-infras", tag = "v0.7.1" }
 
 wp-schema = { git = "https://github.com/wp-labs/wp-schema.git", tag= "v0.1.4-alpha" }
 orion_exp = {  git = "https://github.com/galaxy-sec/orion-exp.git", tag = "v0.1.1" }
 # Orion Dependencies
-orion-error = "0.5.5"
-orion_conf = { version = "~0.3", features = ["yaml", "toml"] }
+orion-error = "0.5"
+orion_conf = { version = "0.3", features = ["yaml", "toml"] }
 
 # Core Runtime Dependencies
-async-trait = "~0.1"
-anyhow = "~1.0"
-chrono = "~0.4"
-log = "~0.4"
-rdkafka-wrap = { version = "~0.1"  }
-serde = { version = "~1.0", features = ["derive"] }
-serde_json = "~1.0"
-toml = "~0.9"
-tokio = { version = "~1.48", features = ["full"] }
-bytes = "~1.11.0"
-winnow = "~0.7"
-educe = { version = "~0.6", default-features = false, features = ["Debug", "Default"] }
-sea-orm = { version = "~1.1", default-features = false, features = ["sqlx-mysql", "runtime-tokio-rustls"] }
+async-trait = "0.1"
+anyhow = "1.0"
+chrono = "0.4"
+log = "0.4"
+rdkafka-wrap = { version = "0.1"  }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.9"
+tokio = { version = "1.48", features = ["full"] }
+bytes = "1.11.0"
+winnow = "0.7"
+educe = { version = "0.6", default-features = false, features = ["Debug", "Default"] }
+sea-orm = { version = "1.1", default-features = false, features = ["sqlx-mysql", "runtime-tokio-rustls"] }
+sqlx = { version = "0.8", default-features = false, features = ["mysql", "runtime-tokio", "tls-native-tls"]  }
+
 
 # Optional Feature Dependencies
-actix-web = "~4.12"
-reqwest = { version = "~0.12", features = ["json"] }
-prometheus = "~0.14"
-regex = "~1.12"
-lazy_static = "~1.5"
-uuid = { version = "~1.19", features = ["v4"] }
+actix-web = "4.12"
+reqwest = { version = "0.12", features = ["json"] }
+prometheus = "0.14"
+regex = "1.12"
+lazy_static = "1.5"
+uuid = { version = "1.19", features = ["v4"] }
 
 # Dev Dependencies
-env_logger = "~0.10"
+env_logger = "0.10"
 
 [package]
 name = "wp-connectors"
@@ -63,8 +65,8 @@ description.workspace = true
 [features]
 # 默认只编译 Kafka 相关代码；需要 Prometheus 导出器时启用 `prometheus` 特性
 #default = ["kafka"]
-default = ["kafka", "mysql", "prometheus", "victoriametrics", "victorialogs", "doris"]
-kafka = ["dep:rdkafka-wrap"]
+default = ["kafka", "mysql","prometheus","victoriametrics", "victorialogs","doris"]
+kafka = [ "dep:rdkafka-wrap"]
 mysql = []
 victorialogs = []
 prometheus = [
@@ -81,19 +83,10 @@ victoriametrics = [
     "dep:lazy_static",
     "dep:uuid",
 ]
-elasticsearch = []
-clickhouse = []
 doris = ["dep:reqwest", "dep:sqlx"]
-full = [
-    "kafka",
-    "doris",
-    "mysql",
-    "prometheus",
-    "elasticsearch",
-    "clickhouse",
-    "victorialogs",
-    "victoriametrics",
-]
+elasticsearch = []
+clickhouse= []
+full = ["kafka", "mysql", "prometheus", "elasticsearch", "clickhouse", "victoriametrics", "victorialogs", "doris"]
 
 [dependencies]
 # WP Dependencies - using workspace versions
@@ -107,7 +100,7 @@ wp-conf-base = { workspace = true }
 wp-data-fmt = { workspace = true }
 wp-schema = { workspace = true }
 orion_exp = { workspace = true }
-
+sqlx = { workspace =true ,optional = true  }
 # Orion Dependencies - using workspace versions
 orion-error = { workspace = true }
 orion_conf = { workspace = true }
@@ -126,8 +119,7 @@ bytes = { workspace = true }
 winnow = { workspace = true }
 educe = { workspace = true }
 sea-orm = { workspace = true }
-# sqlx = { version = "0.8.2", default-features = false, features = ["runtime-tokio", "macros", "mysql", "tls-native-tls"], optional = true }
-sqlx = { version = "0.8", default-features = false, features = ["mysql", "runtime-tokio", "tls-native-tls"] , optional = true }
+
 # Optional Dependencies - using workspace versions
 actix-web = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }

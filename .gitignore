@@ -2,3 +2,4 @@ target/
 .*/
 .run.gxl
 wp-docs
+Cargo.lock
