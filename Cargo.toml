@@ -5,7 +5,7 @@ members = [".",]  # 当前包作为workspace成员
 [workspace.package]
 version = "0.7.4"
 edition = "2024"
-description = "Unified Kafka connector for wp-flow system supporting both source and sink functionality"
+description = "Unified connector for wp-flow system supporting both source and sink functionality"
 authors = ["WP Labs Team"]
 license = "Elastic-2.0"
 repository = "https://github.com/wp-labs/wp-connectors"
@@ -58,9 +58,11 @@ env_logger = "0.10"
 
 [package]
 name = "wp-connectors"
-version.workspace = true
-edition.workspace = true
-description.workspace = true
+description = "Unified connector for wp-flow system supporting both source and sink functionality"
+authors = ["WP Labs Team"]
+license = "Elastic-2.0"
+repository = "https://github.com/wp-labs/wp-connectors"
+homepage = "https://github.com/wp-labs/wp-connectors"
 
 [features]
 # 默认只编译 Kafka 相关代码；需要 Prometheus 导出器时启用 `prometheus` 特性
