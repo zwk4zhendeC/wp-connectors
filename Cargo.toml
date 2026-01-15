@@ -135,3 +135,4 @@ uuid = { workspace = true, optional = true }
 [dev-dependencies]
 env_logger = { workspace = true }
 chrono = { workspace = true }
+httpmock = "0.7"

@@ -91,10 +91,17 @@ impl AsyncRecordSink for VictoriaLogSink {
             Ok(resp) => {
                 if !resp.status().is_success() {
                     error_data!("reqwest send error, text: {:?}", resp.text().await);
+                    return Err(SinkError::from(SinkReason::Sink(
+                        "reqwest send error".to_string(),
+                    )));
                 }
             }
             Err(e) => {
                 error_data!("reqwest send error, text: {:?}", e);
+                return Err(SinkError::from(SinkReason::Sink(format!(
+                    "reqwest send fail: {}",
+                    e
+                ))));
             }
         };
         Ok(())
@@ -139,12 +146,20 @@ impl AsyncRawDataSink for VictoriaLogSink {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use httpmock::prelude::*;
     use std::time::Duration;
     use wp_connector_api::AsyncRecordSink;
     use wp_model_core::model::{DataField, DataRecord};
 
     #[tokio::test]
     async fn test_sink_record_json_conversion() {
+        // 使用本地 mock server 模拟 VictoriaLogs 接口，避免真实网络依赖
+        let server = MockServer::start_async().await;
+        let _mock = server.mock(|when, then| {
+            when.method(POST).path("/insert");
+            then.status(200);
+        });
+
         let record = DataRecord::default();
         let client = reqwest::Client::builder()
             .no_proxy()
@@ -153,7 +168,7 @@ mod tests {
             .expect("Failed to create client");
 
         let mut sink = VictoriaLogSink::new(
-            "http://127.0.0.1:8428".into(),
+            server.base_url(),
             "/insert".into(),
             client,
             TextFmt::Json,
