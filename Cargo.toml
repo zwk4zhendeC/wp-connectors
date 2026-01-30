@@ -7,7 +7,7 @@ version = "0.7.5"
 edition = "2024"
 description = "Unified connector for wp-flow system supporting both source and sink functionality"
 authors = ["WP Labs Team"]
-license = "Elastic-2.0"
+license = "Apache-2.0"
 repository = "https://github.com/wp-labs/wp-connectors"
 homepage = "https://github.com/wp-labs/wp-connectors"
 
@@ -62,7 +62,7 @@ version = "0.7.4"
 edition = "2024"
 description = "Unified connector for wp-flow system supporting both source and sink functionality"
 authors = ["WP Labs Team"]
-license = "Elastic-2.0"
+license = "Apache-2.0"
 repository = "https://github.com/wp-labs/wp-connectors"
 homepage = "https://github.com/wp-labs/wp-connectors"
 
@@ -135,4 +135,4 @@ uuid = { workspace = true, optional = true }
 [dev-dependencies]
 env_logger = { workspace = true }
 chrono = { workspace = true }
-httpmock = "0.7"
+httpmock = "0.8"
