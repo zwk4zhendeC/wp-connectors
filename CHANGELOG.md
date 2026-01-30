@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Change license from Elastic License 2.0 to Apache License 2.0
+- Update LICENSE file with Apache 2.0 full text
+- Update `license` field in Cargo.toml to `Apache-2.0`
+
+### Added
+- Add CONTRIBUTING.md with branch strategy and contribution guidelines (bilingual EN/CN)
+- Add comprehensive README.md with connector overview, features, and project structure (bilingual EN/CN)
+
 ## [0.7.4] - 2026-01-12
 
 ### Added

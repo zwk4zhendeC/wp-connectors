@@ -263,7 +263,7 @@ mod tests {
         let result = sink.send_payload("{}".to_string()).await;
 
         assert!(result.is_ok(), "send_payload 应返回 Ok");
-        assert_eq!(mock_200.hits(), 1, "仅应发送一次请求");
+        assert_eq!(mock_200.calls(), 1, "仅应发送一次请求");
     }
 
     #[tokio::test]
@@ -278,7 +278,7 @@ mod tests {
         let result = sink.send_payload("{}".to_string()).await;
 
         assert!(result.is_err(), "服务端错误应返回 Err");
-        assert_eq!(mock_500.hits(), 3, "应重试 3 次");
+        assert_eq!(mock_500.calls(), 3, "应重试 3 次");
     }
 
     #[tokio::test]
@@ -293,7 +293,7 @@ mod tests {
         let result = sink.send_payload("{}".to_string()).await;
 
         assert!(result.is_err(), "客户端错误应返回 Err");
-        assert_eq!(mock_400.hits(), 1, "4xx 不应重试");
+        assert_eq!(mock_400.calls(), 1, "4xx 不应重试");
     }
 
     /// 创建用于测试的 VictoriaLogSink 实例
