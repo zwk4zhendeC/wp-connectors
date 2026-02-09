@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use wp_connector_api::{
     AsyncCtrl, AsyncRawDataSink, AsyncRecordSink, SinkError, SinkReason, SinkResult,
 };
-use wp_data_fmt::{DataFormat, FormatType};
+use wp_data_fmt::{FormatType, RecordFormatter};
 use wp_log::error_data;
 use wp_model_core::model::{DataRecord, Value, fmt_def::TextFmt};
 
@@ -32,7 +32,7 @@ impl VictoriaLogSink {
             return now;
         };
 
-        if let Value::Time(dt) = &orin_timestamp.value {
+        if let Value::Time(dt) = orin_timestamp.get_value() {
             return dt
                 .and_utc()
                 .timestamp_nanos_opt()
@@ -71,7 +71,7 @@ impl AsyncRecordSink for VictoriaLogSink {
             .collect::<HashMap<String, String>>();
         let timestamp = self.resolve_timestamp_str(data);
         let fmt = FormatType::from(&self.fmt);
-        let formatted_msg = fmt.format_record(data);
+        let formatted_msg = fmt.fmt_record(data);
         value_map.insert("_msg".to_string(), formatted_msg.clone());
         value_map.insert("_time".to_string(), timestamp);
         let res = serde_json::to_string(&value_map).map_err(|e| {

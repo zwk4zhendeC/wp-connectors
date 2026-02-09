@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use wp_connector_api::{AsyncCtrl, AsyncRawDataSink, AsyncRecordSink, SinkReason, SinkResult};
-use wp_data_fmt::{DataFormat, FormatType};
+use wp_data_fmt::{FormatType, RecordFormatter};
 use wp_model_core::model::{DataRecord, fmt_def::TextFmt};
 
 use crate::kafka::config::KafkaSinkConf;
@@ -70,7 +70,7 @@ impl AsyncRecordSink for KafkaSink {
     async fn sink_record(&mut self, data: &DataRecord) -> SinkResult<()> {
         // 非文件类 sink 支持通过参数选择输出格式（默认 json）
         let fmt = FormatType::from(&self.fmt);
-        let line = format!("{}\n", fmt.format_record(data));
+        let line = format!("{}\n", fmt.fmt_record(data));
         self.inner
             .publish(line.as_bytes(), Default::default())
             .await

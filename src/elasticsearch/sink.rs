@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use wp_connector_api::{AsyncCtrl, AsyncRawDataSink, AsyncRecordSink};
 use wp_error::dist_error::{SinkError, SinkReason, SinkResult};
-use wp_model_core::format::{DataFormat, Json};
+use wp_data_fmt::{Json, RecordFormatter};
 use wp_model_core::model::DataRecord;
 
 const DEFAULT_BATCH: usize = 100;
@@ -87,7 +87,7 @@ impl AsyncCtrl for ElasticsearchSink {
 impl AsyncRecordSink for ElasticsearchSink {
     async fn sink_record(&mut self, data: &DataRecord) -> SinkResult<()> {
         let j = Json;
-        let val = j.format_record(data).to_string();
+        let val = j.fmt_record(data);
         self.proc_cnt += 1;
         self.values.push_back((self.table.clone(), val));
         if self.proc_cnt.is_multiple_of(self.batch) {

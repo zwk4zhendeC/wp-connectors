@@ -3,7 +3,7 @@ use reqwest::StatusCode;
 use std::collections::HashMap;
 use std::sync::Arc;
 use wp_connector_api::{AsyncCtrl, AsyncRawDataSink, AsyncRecordSink};
-use wp_model_core::format::{DataFormat, Json};
+use wp_data_fmt::{Json, RecordFormatter};
 use wp_model_core::model::DataRecord;
 
 const DEFAULT_BATCH: usize = 100;
@@ -111,7 +111,7 @@ impl AsyncRecordSink for ClickhouseSink {
     async fn sink_record(&mut self, data: &DataRecord) -> SinkResult<()> {
         // build json line
         let json_fmt = Json;
-        let v = json_fmt.format_record(data).to_string();
+        let v = json_fmt.fmt_record(data);
         self.proc_cnt += 1;
         self.values.entry(self.table.clone()).or_default().push(v);
         if self

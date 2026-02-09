@@ -3,11 +3,11 @@
 use crate::WP_SRC_VAL;
 use lazy_static::lazy_static;
 use orion_exp::ValueGet0;
-use wp_model_core::model::data::Field as ModelField;
+use wp_model_core::model::FieldStorage;
 
-// 本地轻薄封装：将 Option<&Field<Value>> 包成本地类型，
+// 本地轻薄封装：将 Option<&FieldStorage> 包成本地类型，
 // 以便实现 orion_exp::ValueGet0（避免孤儿规则限制）。
-pub(crate) struct OptField<'a>(Option<&'a ModelField<Value>>);
+pub(crate) struct OptField<'a>(Option<&'a FieldStorage>);
 
 impl<'a> ValueGet0<Value> for OptField<'a> {
     fn get_value(&self) -> Option<&Value> {
@@ -19,7 +19,7 @@ pub(crate) trait IntoOptField<'a> {
     fn opt(self) -> OptField<'a>;
 }
 
-impl<'a> IntoOptField<'a> for Option<&'a ModelField<Value>> {
+impl<'a> IntoOptField<'a> for Option<&'a FieldStorage> {
     fn opt(self) -> OptField<'a> {
         OptField(self)
     }
