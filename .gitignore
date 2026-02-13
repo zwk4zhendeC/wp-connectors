@@ -4,3 +4,4 @@ target/
 .rule
 wp-docs
 Cargo.lock
+.tmp
