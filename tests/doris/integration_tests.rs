@@ -48,6 +48,7 @@ fn integration_config() -> DorisSinkConfig {
 }
 
 #[test]
+#[ignore = "requires running Doris instance"]
 fn doris_sink_factory_validates_spec() -> anyhow::Result<()> {
     let spec = integration_spec();
     let factory = DorisSinkFactory;
@@ -56,6 +57,7 @@ fn doris_sink_factory_validates_spec() -> anyhow::Result<()> {
 }
 
 #[test]
+#[ignore = "requires running Doris instance"]
 fn doris_sink_factory_rejects_invalid_endpoint() {
     let mut spec = integration_spec();
     spec.params
@@ -66,6 +68,7 @@ fn doris_sink_factory_rejects_invalid_endpoint() {
 }
 
 #[tokio::test]
+#[ignore = "requires running Doris instance"]
 async fn doris_sink_connects_and_inserts_rows() -> anyhow::Result<()> {
     if should_skip_integration() {
         eprintln!("⚠️  Skipping Doris integration test ({} set)", SKIP_ENV);
