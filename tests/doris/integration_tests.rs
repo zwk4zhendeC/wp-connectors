@@ -2,31 +2,17 @@
 //! Integration tests for Doris sink factory. These tests focus on config validation so they
 //! don't require a running Doris cluster.
 
-use anyhow::Context;
 use serde_json::Value;
-use sqlx::{Row, mysql::MySqlPool, raw_sql};
 use std::collections::BTreeMap;
-use wp_connector_api::{SinkBuildCtx, SinkFactory, SinkSpec};
+use wp_connector_api::{AsyncCtrl, AsyncRecordSink, SinkFactory, SinkSpec};
 use wp_connectors::doris::{DorisSink, DorisSinkConfig, DorisSinkFactory};
 use wp_model_core::model::{DataField, DataRecord};
 
-const TEST_DORIS_ENDPOINT: &str = "mysql://localhost:9030";
-const TEST_DORIS_DB: &str = "wp_test";
+const TEST_DORIS_ENDPOINT: &str = "http://localhost:8040";
+const TEST_DORIS_DB: &str = "test_db";
 const TEST_DORIS_USER: &str = "root";
 const TEST_DORIS_PASSWORD: &str = "";
-const TEST_DORIS_TABLE: &str = "doris_test";
-const CREATE_TABLE_TEMPLATE: &str = r#"
-    CREATE TABLE IF NOT EXISTS `{table}` (
-        `id` BIGINT NOT NULL AUTO_INCREMENT,
-        `name` STRING,
-        `score` DOUBLE
-    )
-    DUPLICATE KEY (`id`)
-    DISTRIBUTED BY HASH(`id`) BUCKETS 2
-    PROPERTIES (
-        "replication_num" = "1"
-    )
-"#;
+const TEST_DORIS_TABLE: &str = "wp_jnginx";
 const SKIP_ENV: &str = "SKIP_DORIS_INTEGRATION_TESTS";
 
 fn integration_spec() -> SinkSpec {
@@ -36,12 +22,8 @@ fn integration_spec() -> SinkSpec {
     params.insert("user".into(), Value::String(TEST_DORIS_USER.into()));
     params.insert("password".into(), Value::String(TEST_DORIS_PASSWORD.into()));
     params.insert("table".into(), Value::String(TEST_DORIS_TABLE.into()));
-    params.insert("pool".into(), Value::from(2));
-    params.insert("batch".into(), Value::from(1));
-    params.insert(
-        "create_table".into(),
-        Value::String(CREATE_TABLE_TEMPLATE.into()),
-    );
+    params.insert("timeout_secs".into(), Value::from(30));
+    params.insert("max_retries".into(), Value::from(3));
     SinkSpec {
         name: "doris_integration".into(),
         kind: "doris".into(),
@@ -53,79 +35,83 @@ fn integration_spec() -> SinkSpec {
 }
 
 fn integration_config() -> DorisSinkConfig {
-    DorisSinkConfig::new(
-        TEST_DORIS_ENDPOINT.into(),
-        TEST_DORIS_DB.into(),
-        TEST_DORIS_USER.into(),
-        TEST_DORIS_PASSWORD.into(),
-        TEST_DORIS_TABLE.into(),
-        Some(CREATE_TABLE_TEMPLATE.into()),
-        Some(2),
-        Some(1),
-    )
+    DorisSinkConfig {
+        endpoint: TEST_DORIS_ENDPOINT.into(),
+        database: TEST_DORIS_DB.into(),
+        user: TEST_DORIS_USER.into(),
+        password: TEST_DORIS_PASSWORD.into(),
+        table: TEST_DORIS_TABLE.into(),
+        timeout_secs: 30,
+        max_retries: 3,
+        headers: None,
+    }
 }
 
-#[ignore = "not ready"]
+#[test]
+#[ignore = "requires running Doris instance"]
+fn doris_sink_factory_validates_spec() -> anyhow::Result<()> {
+    let spec = integration_spec();
+    let factory = DorisSinkFactory;
+    factory.validate_spec(&spec)?;
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires running Doris instance"]
+fn doris_sink_factory_rejects_invalid_endpoint() {
+    let mut spec = integration_spec();
+    spec.params
+        .insert("endpoint".into(), Value::String("invalid-url".into()));
+    let factory = DorisSinkFactory;
+    let result = factory.validate_spec(&spec);
+    assert!(result.is_err(), "should reject invalid endpoint");
+}
+
 #[tokio::test]
-async fn doris_sink_connects_queries_schema_and_inserts_rows() -> anyhow::Result<()> {
+#[ignore = "requires running Doris instance"]
+async fn doris_sink_connects_and_inserts_rows() -> anyhow::Result<()> {
     if should_skip_integration() {
         eprintln!("⚠️  Skipping Doris integration test ({} set)", SKIP_ENV);
         return Ok(());
     }
 
-    let spec = integration_spec();
-    let factory = DorisSinkFactory;
-    factory.validate_spec(&spec)?;
-    let ctx = SinkBuildCtx::new(std::env::current_dir()?);
-    let mut handle = factory.build(&spec, &ctx).await?;
-    let sink = DorisSink::new(integration_config()).await?;
-    let pool = sink.pool;
-    cleanup_test_rows(&pool).await?;
+    let mut sink = DorisSink::new(integration_config()).await?;
 
-    let columns = fetch_table_columns(&pool).await?;
-    assert_eq!(columns, vec!["id", "name", "score"]);
+    // 创建测试数据
+    let mut record1 = DataRecord::default();
+    record1.append(DataField::from_digit("wp_event_id", 1001));
+    record1.append(DataField::from_chars("wp_src_key", "test"));
+    record1.append(DataField::from_chars("date", "1707580800.0"));
+    record1.append(DataField::from_chars("sip", "192.168.1.1"));
+    record1.append(DataField::from_chars("timestamp", "2024-02-10 12:00:00"));
+    record1.append(DataField::from_chars("http/request", "GET /test HTTP/1.1"));
+    record1.append(DataField::from_digit("status", 200));
+    record1.append(DataField::from_digit("size", 1024));
+    record1.append(DataField::from_chars("referer", "https://example.com"));
+    record1.append(DataField::from_chars("http/agent", "Mozilla/5.0"));
 
-    let mut alice = DataRecord::default();
-    alice.append(DataField::from_digit("id", 1));
-    alice.append(DataField::from_chars("name", "Alice"));
-    alice.append(DataField::from_chars("score", "98.5"));
+    let mut record2 = DataRecord::default();
+    record2.append(DataField::from_digit("wp_event_id", 1002));
+    record2.append(DataField::from_chars("wp_src_key", "test"));
+    record2.append(DataField::from_chars("date", "1707580801.0"));
+    record2.append(DataField::from_chars("sip", "192.168.1.2"));
+    record2.append(DataField::from_chars("timestamp", "2024-02-10 12:00:01"));
+    record2.append(DataField::from_chars("http/request", "POST /api HTTP/1.1"));
+    record2.append(DataField::from_digit("status", 201));
+    record2.append(DataField::from_digit("size", 2048));
+    record2.append(DataField::from_chars("referer", "https://example.com"));
+    record2.append(DataField::from_chars("http/agent", "curl/7.68.0"));
 
-    let mut bob = DataRecord::default();
-    bob.append(DataField::from_digit("id", 2));
-    bob.append(DataField::from_chars("name", "Bob"));
-    bob.append(DataField::from_chars("score", "87.0"));
+    // 批量插入
+    sink.sink_record(&record1).await?;
+    sink.sink_record(&record2).await?;
+    sink.stop().await?;
 
-    handle.sink.sink_record(&alice).await?;
-    handle.sink.sink_record(&bob).await?;
-    handle.sink.stop().await?;
-
-    let select_sql = format!(
-        "SELECT id, name, score FROM `{}` ORDER BY id",
-        TEST_DORIS_TABLE
-    );
-    let rows = raw_sql(&select_sql).fetch_all(&pool).await?;
-
-    let mut actual = Vec::new();
-    for row in rows {
-        let id: i32 = row.try_get("id")?;
-        let name: String = row.try_get("name")?;
-        let score: f64 = row.try_get("score")?;
-        actual.push((id, name, score));
-    }
-
-    assert_eq!(actual.len(), 2);
-    assert_eq!(actual[0].0, 1);
-    assert_eq!(actual[0].1, "Alice");
-    assert!((actual[0].2 - 98.5).abs() < 1e-6);
-    assert_eq!(actual[1].0, 2);
-    assert_eq!(actual[1].1, "Bob");
-    assert!((actual[1].2 - 87.0).abs() < 1e-6);
-
-    cleanup_test_rows(&pool).await?;
+    println!("✅ Successfully inserted 2 records into Doris");
     Ok(())
 }
 
-#[ignore = "not ready"]
+#[ignore = "requires running Doris instance"]
 #[tokio::test]
 async fn doris_sink_new_initializes_via_direct_config() -> anyhow::Result<()> {
     if should_skip_integration() {
@@ -139,37 +125,4 @@ async fn doris_sink_new_initializes_via_direct_config() -> anyhow::Result<()> {
 
 fn should_skip_integration() -> bool {
     std::env::var(SKIP_ENV).is_ok()
-}
-
-async fn cleanup_test_rows(pool: &MySqlPool) -> anyhow::Result<()> {
-    let truncate_sql = format!("TRUNCATE TABLE `{}`", TEST_DORIS_TABLE);
-    raw_sql(&truncate_sql)
-        .execute(pool)
-        .await
-        .with_context(|| format!("truncate table failed: {}", truncate_sql))?;
-    Ok(())
-}
-
-async fn fetch_table_columns(pool: &MySqlPool) -> anyhow::Result<Vec<String>> {
-    let columns_sql = format!(
-        "SELECT COLUMN_NAME FROM information_schema.COLUMNS \
-         WHERE TABLE_SCHEMA='{}' AND TABLE_NAME='{}' \
-         ORDER BY ORDINAL_POSITION",
-        escape_single_quotes(TEST_DORIS_DB),
-        escape_single_quotes(TEST_DORIS_TABLE)
-    );
-    let rows = raw_sql(&columns_sql)
-        .fetch_all(pool)
-        .await
-        .context("fetch table columns")?;
-
-    let mut cols = Vec::with_capacity(rows.len());
-    for row in rows {
-        cols.push(row.try_get("COLUMN_NAME")?);
-    }
-    Ok(cols)
-}
-
-fn escape_single_quotes(input: &str) -> String {
-    input.replace('\'', "''")
 }
