@@ -180,7 +180,8 @@ impl AsyncRawDataSink for VictoriaLogSink {
     }
 }
 
-#[cfg(test)]
+// 仅在显式开启 httpmock-tests 特性时编译该测试模块
+#[cfg(all(test, feature = "httpmock-tests"))]
 mod tests {
     use super::*;
     use httpmock::prelude::*;
