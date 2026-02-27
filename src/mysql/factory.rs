@@ -141,7 +141,7 @@ impl SinkFactory for MySQLSinkFactory {
             conf.batch = Some(i as usize);
         }
         // columns 列表在新版配置中不在 conf 中，作为外部参数传入 sink
-        let mut columns: Vec<String> =
+        let columns: Vec<String> =
             if let Some(arr) = spec.params.get("columns").and_then(|v| v.as_array()) {
                 let mut out = Vec::with_capacity(arr.len());
                 for item in arr {
@@ -155,11 +155,6 @@ impl SinkFactory for MySQLSinkFactory {
             } else {
                 Vec::new()
             };
-
-        // 内置主键 wp_event_id 必须包含在 columns 中
-        if !columns.contains(&"wp_event_id".to_string()) {
-            columns.push("wp_event_id".to_string());
-        }
         let url = conf.get_database_url();
         let mut opt = ConnectOptions::new(url.clone());
         opt.max_connections(10)

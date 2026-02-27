@@ -161,10 +161,9 @@ impl AsyncRecordSink for MysqlSink {
             if vals.is_empty() {
                 continue;
             }
-            // 单条 INSERT + 多个 VALUES
+            // 单条 INSERT + 多个 VALUES（不加分号，兼容性更好）
             let mut sql = self.base_insert_prefix();
             sql.push_str(&vals.join(","));
-            sql.push(';');
             let state = Statement::from_string(self.db.get_database_backend(), sql);
             if let Err(e) = self.db.execute(state.clone()).await {
                 return Err(SinkError::from(SinkReason::Sink(format!(
