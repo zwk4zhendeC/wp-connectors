@@ -164,6 +164,7 @@ impl SinkFactory for MySQLSinkFactory {
             .idle_timeout(Duration::from_secs(8))
             .max_lifetime(Duration::from_secs(8))
             .sqlx_logging(false)
+            .map_sqlx_mysql_opts(|opt| opt.statement_cache_capacity(0))
             .sqlx_logging_level(log::LevelFilter::Info);
         let db = Database::connect(opt).await.map_err(|err| {
             SinkError::from(SinkReason::sink(format!("connect mysql fail: {err}")))
