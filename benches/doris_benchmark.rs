@@ -60,7 +60,7 @@ fn bench_batch_records(c: &mut Criterion) {
             |records| {
                 // Routine: 被测试的代码（使用 setup 返回的数据）
                 for _i in 0..100 {
-                    rt.block_on(async { 
+                    rt.block_on(async {
                         black_box(sink.sink_records(records.clone()).await.unwrap())
                     })
                 }
@@ -81,3 +81,66 @@ criterion_group! {
 }
 
 criterion_main!(benches);
+
+/// 基准测试：多线程并发发送
+/// 测试 100w 数据由 n 个线程并发发送的性能
+fn bench_concurrent_send(c: &mut Criterion) {
+    use std::sync::Arc as StdArc;
+    use tokio::sync::Mutex;
+
+    let rt = Runtime::new().unwrap();
+
+    // 配置参数
+    let total_records = 1_000_000; // 100w 条数据
+    let thread_count = 10; // 线程数（可调整：5, 10, 20, 50）
+    let batch_size = 1000; // 每批次大小
+    let records_per_thread = total_records / thread_count;
+
+    c.bench_function(
+        &format!("doris_concurrent_{}threads_1m_records", thread_count),
+        |b| {
+            b.iter(|| {
+                rt.block_on(async {
+                    // 创建共享的 sink（使用 Mutex 保护）
+                    let sink = StdArc::new(Mutex::new(create_test_sink().await));
+
+                    // 创建多个并发任务
+                    let mut handles = vec![];
+
+                    for thread_id in 0..thread_count {
+                        let sink_clone = StdArc::clone(&sink);
+
+                        let handle = tokio::spawn(async move {
+                            let mut sent = 0;
+                            while sent < records_per_thread {
+                                // 每次发送一批数据
+                                let current_batch = batch_size.min(records_per_thread - sent);
+                                let records: Vec<Arc<DataRecord>> = (0..current_batch)
+                                    .map(|i| {
+                                        Arc::new(create_sample_record(
+                                            (thread_id * records_per_thread + sent + i) as i64,
+                                        ))
+                                    })
+                                    .collect();
+
+                                // 获取锁并发送数据
+                                let mut sink_guard = sink_clone.lock().await;
+                                sink_guard.sink_records(records).await.unwrap();
+                                drop(sink_guard); // 显式释放锁
+
+                                sent += current_batch;
+                            }
+                        });
+
+                        handles.push(handle);
+                    }
+
+                    // 等待所有任务完成
+                    for handle in handles {
+                        black_box(handle.await.unwrap());
+                    }
+                })
+            });
+        },
+    );
+}
