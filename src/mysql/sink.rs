@@ -9,17 +9,11 @@ use wp_connector_api::{
 use wp_log::error_data;
 use wp_model_core::model::{DataRecord, DataType};
 
-// no local Result alias needed
-
-const DEFAULT_BATCH: usize = 100;
 pub struct MysqlSink {
     pub db: DatabaseConnection,
     pub table: String,
     pub cloumn_name: Vec<String>,
-    pub batch: usize,
-    pub proc_cnt: usize,
-    pub values: HashMap<String, Vec<String>>,
-    pub dsn: String,
+    pub values: Vec<String>,
 }
 
 impl MysqlSink {
@@ -28,16 +22,12 @@ impl MysqlSink {
         table: String,
         cloumn_name: Vec<String>,
         batch: Option<usize>,
-        dsn: String,
     ) -> Self {
         Self {
             db,
             table,
             cloumn_name,
-            batch: batch.unwrap_or(DEFAULT_BATCH),
-            proc_cnt: 0,
-            values: Default::default(),
-            dsn,
+            values: Vec::with_capacity(batch.unwrap_or(1024)),
         }
     }
 
@@ -123,16 +113,12 @@ impl MysqlSink {
 impl AsyncCtrl for MysqlSink {
     async fn stop(&mut self) -> SinkResult<()> {
         // 将待写入的数据提前组装为 SQL 字符串，避免对 self.values 的借用贯穿异步等待
-        // 同时避免在异步上下文中使用阻塞行为（如 std::thread::sleep）
         let backend = self.db.get_database_backend();
         let mut pending_sqls: Vec<String> = Vec::new();
-        for vals in self.values.values() {
-            if vals.is_empty() {
-                continue;
-            }
+        if !self.values.is_empty() {
             // 单条 INSERT + 多个 VALUES（不加分号，兼容性更好）
             let mut sql = self.base_insert_prefix();
-            sql.push_str(&vals.join(","));
+            sql.push_str(&self.values.join(","));
             pending_sqls.push(sql);
         }
         // 清空缓存，避免重复写
@@ -153,17 +139,12 @@ impl AsyncCtrl for MysqlSink {
 impl AsyncRecordSink for MysqlSink {
     async fn sink_record(&mut self, data: &DataRecord) -> SinkResult<()> {
         let raw = self.format_values_tuple(data);
-        // Defer batching by grouping under same table key
-        self.proc_cnt += 1;
-        self.values.entry(self.table.clone()).or_default().push(raw);
+        self.values.push(raw);
 
-        for vals in self.values.values() {
-            if vals.is_empty() {
-                continue;
-            }
+        if !self.values.is_empty() {
             // 单条 INSERT + 多个 VALUES（不加分号，兼容性更好）
             let mut sql = self.base_insert_prefix();
-            sql.push_str(&vals.join(","));
+            sql.push_str(&self.values.join(","));
             if let Err(e) = self.db.execute_unprepared(sql.as_str()).await {
                 return Err(SinkError::from(SinkReason::Sink(format!(
                     "mysql exec cloumns:{:?}, fail: {}, sql: {}",
@@ -176,9 +157,23 @@ impl AsyncRecordSink for MysqlSink {
     }
 
     async fn sink_records(&mut self, data: Vec<Arc<DataRecord>>) -> SinkResult<()> {
+        let mut raws = Vec::with_capacity(data.len());
         for record in data {
-            self.sink_record(record.as_ref()).await?;
+            raws.push(self.format_values_tuple(record.as_ref()));
         }
+        self.values.extend(raws);
+        if !self.values.is_empty() {
+            // 单条 INSERT + 多个 VALUES
+            let mut sql = self.base_insert_prefix();
+            sql.push_str(&self.values.join(","));
+            if let Err(e) = self.db.execute_unprepared(sql.as_str()).await {
+                return Err(SinkError::from(SinkReason::Sink(format!(
+                    "mysql exec cloumns:{:?}, fail: {}, sql: {}",
+                    self.cloumn_name, e, sql
+                ))));
+            }
+        }
+        self.values.clear();
         Ok(())
     }
 }
@@ -205,5 +200,40 @@ impl AsyncRawDataSink for MysqlSink {
         Err(SinkError::from(SinkReason::Sink(
             "mysql sink does not accept raw bytes".into(),
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MysqlSink;
+    use sea_orm::DatabaseConnection;
+    use wp_model_core::model::{DataField, DataRecord};
+
+    fn make_sink(table: &str, columns: Vec<&str>) -> MysqlSink {
+        MysqlSink::new(
+            DatabaseConnection::default(),
+            table.to_string(),
+            columns.into_iter().map(|s| s.to_string()).collect(),
+            Some(8),
+        )
+    }
+
+    #[test]
+    fn mysql_sink_base_insert_prefix() {
+        let sink = make_sink("users", vec!["name", "age"]);
+        let sql = sink.base_insert_prefix();
+        assert_eq!(sql, "INSERT IGNORE INTO users (`name`, `age`) VALUES ");
+    }
+
+    #[test]
+    fn mysql_sink_format_values_tuple() {
+        let sink = make_sink("users", vec!["name", "age", "note"]);
+        let mut record = DataRecord::default();
+        record.append(DataField::from_chars("name", "O'Reilly"));
+        record.append(DataField::from_digit("age", 42));
+        record.append(DataField::from_ignore("unused"));
+
+        let values = sink.format_values_tuple(&record);
+        assert_eq!(values, "('O''Reilly', '42', NULL)");
     }
 }
