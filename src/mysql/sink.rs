@@ -202,3 +202,38 @@ impl AsyncRawDataSink for MysqlSink {
         )))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::MysqlSink;
+    use sea_orm::DatabaseConnection;
+    use wp_model_core::model::{DataField, DataRecord};
+
+    fn make_sink(table: &str, columns: Vec<&str>) -> MysqlSink {
+        MysqlSink::new(
+            DatabaseConnection::default(),
+            table.to_string(),
+            columns.into_iter().map(|s| s.to_string()).collect(),
+            Some(8),
+        )
+    }
+
+    #[test]
+    fn mysql_sink_base_insert_prefix() {
+        let sink = make_sink("users", vec!["name", "age"]);
+        let sql = sink.base_insert_prefix();
+        assert_eq!(sql, "INSERT IGNORE INTO users (`name`, `age`) VALUES ");
+    }
+
+    #[test]
+    fn mysql_sink_format_values_tuple() {
+        let sink = make_sink("users", vec!["name", "age", "note"]);
+        let mut record = DataRecord::default();
+        record.append(DataField::from_chars("name", "O'Reilly"));
+        record.append(DataField::from_digit("age", 42));
+        record.append(DataField::from_ignore("unused"));
+
+        let values = sink.format_values_tuple(&record);
+        assert_eq!(values, "('O''Reilly', '42', NULL)");
+    }
+}
