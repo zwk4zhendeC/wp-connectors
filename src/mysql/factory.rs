@@ -137,7 +137,7 @@ impl SinkFactory for MySQLSinkFactory {
             conf.table = Some(s.to_string());
         }
         // Use unsigned extraction to match usize semantics
-        if let Some(i) = spec.params.get("batch").and_then(|v| v.as_u64()) {
+        if let Some(i) = spec.params.get("batch_size").and_then(|v| v.as_u64()) {
             conf.batch = Some(i as usize);
         }
         // columns 列表在新版配置中不在 conf 中，作为外部参数传入 sink
@@ -170,7 +170,7 @@ impl SinkFactory for MySQLSinkFactory {
             SinkError::from(SinkReason::sink(format!("connect mysql fail: {err}")))
         })?;
         let table = conf.table.clone().unwrap_or_else(|| spec.name.clone());
-        let sink = MysqlSink::new(db, table, columns, conf.batch, url);
+        let sink = MysqlSink::new(db, table, columns, conf.batch);
         Ok(SinkHandle::new(Box::new(sink)))
     }
 }
@@ -225,7 +225,7 @@ fn mysql_sink_defaults() -> ParamMap {
     params.insert("database".into(), json!("wp_data"));
     params.insert("table".into(), json!("wp_events"));
     params.insert("username".into(), json!("root"));
-    params.insert("batch".into(), json!(1000));
     params.insert("columns".into(), json!(["wp_event_id", "payload"]));
+    params.insert("batch_size".into(), json!(1024));
     params
 }
