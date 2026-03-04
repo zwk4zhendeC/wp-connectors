@@ -70,7 +70,7 @@ homepage = "https://github.com/wp-labs/wp-connectors"
 [features]
 # 默认只编译 Kafka 相关代码；需要 Prometheus 导出器时启用 `prometheus` 特性
 #default = ["kafka"]
-default = ["kafka", "mysql","prometheus","victoriametrics", "victorialogs","doris","count"]
+default = ["kafka", "mysql","prometheus","victoriametrics", "victorialogs","doris","count","elasticsearch"]
 kafka = [ "dep:rdkafka-wrap"]
 mysql = []
 count = []
@@ -90,7 +90,7 @@ victoriametrics = [
     "dep:uuid",
 ]
 doris = ["dep:reqwest"]
-elasticsearch = []
+elasticsearch = ["dep:reqwest"]
 clickhouse= []
 full = ["kafka", "mysql", "prometheus", "elasticsearch", "clickhouse", "victoriametrics", "victorialogs", "doris"]
 

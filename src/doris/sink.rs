@@ -38,7 +38,6 @@ pub struct DorisSink {
     password: String,
     max_retries: i32,
     headers: HashMap<String, String>,
-    cnt: u64,
     instance_id: u64, // 实例唯一 ID
     // 时间统计工具
     time_stats: TimeStatUtils,
@@ -89,7 +88,6 @@ impl DorisSink {
             password: config.password,
             max_retries: config.max_retries,
             headers: config.headers.unwrap_or_default(),
-            cnt: 0,
             instance_id,
             time_stats: TimeStatUtils::new(),
         })
@@ -110,7 +108,7 @@ impl DorisSink {
         // 格式: doris_load_{实例ID}_{计数器}_{纳秒时间戳}
         Ok(format!(
             "doris_load_{}_{}_{}",
-            self.instance_id, self.cnt, timestamp
+            self.instance_id, self.time_stats.total_count, timestamp
         ))
     }
 
@@ -315,9 +313,6 @@ impl AsyncRecordSink for DorisSink {
 
         // 开始统计
         self.time_stats.start_stat(data.len() as u64);
-
-        // 累积收到的总数
-        self.cnt += data.len() as u64;
 
         // 生成label
         let label = self.generate_label()?;
