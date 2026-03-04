@@ -10,26 +10,26 @@ use std::time::{Duration, Instant};
 /// 时间统计工具
 pub struct TimeStatUtils {
     /// 累计处理的总数量
-    cnt: u64,
+    pub total_count: u64,
     /// 上次运行结束时间
-    last_end_time: Option<Instant>,
+    pub last_end_time: Option<Instant>,
     /// 运行总时间
-    total_duration: Duration,
+    pub total_duration: Duration,
     /// 总间隔时长
-    total_interval: Duration,
+    pub total_interval: Duration,
     /// 当前批次开始时间
-    current_start_time: Option<Instant>,
+    pub current_start_time: Option<Instant>,
     /// 当前批次数量
-    current_count: u64,
+    pub current_count: u64,
     /// 当前批次间隔时间
-    current_interval: Duration,
+    pub current_interval: Duration,
 }
 
 impl TimeStatUtils {
     /// 创建新的时间统计实例
     pub fn new() -> Self {
         Self {
-            cnt: 0,
+            total_count: 0,
             last_end_time: None,
             total_duration: Duration::ZERO,
             total_interval: Duration::ZERO,
@@ -57,7 +57,7 @@ impl TimeStatUtils {
 
         self.current_start_time = Some(start_time);
         self.current_count = count;
-        self.cnt += count;
+        self.total_count += count;
     }
 
     /// 结束统计
@@ -91,12 +91,12 @@ impl TimeStatUtils {
             .map(|d| d.as_millis())
             .unwrap_or(0);
 
-        wp_log::info_mtrc!(
+        wp_log::debug_mtrc!(
             "[{}][{}] 统计 - 当前: {} 条, 总计: {} 条, 间隔: {:.3}s, 本次耗时: {:.3}s, 总耗时: {:.3}s, 总间隔: {:.3}s",
             timestamp,
             key,
             self.current_count,
-            self.cnt,
+            self.total_count,
             self.current_interval.as_secs_f64(),
             execution_time.as_secs_f64(),
             self.total_duration.as_secs_f64(),

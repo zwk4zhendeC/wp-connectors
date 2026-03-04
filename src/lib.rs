@@ -32,11 +32,9 @@ pub mod count;
 #[cfg(feature = "victorialogs")]
 pub mod victorialogs;
 
-// Elasticsearch：预留可选特性，后续接入独立子 crate 时再暴露实现
+// Elasticsearch：可选功能，启用方式 `--features elasticsearch`
 #[cfg(feature = "elasticsearch")]
-pub mod elasticsearch {
-    //! 占位模块：后续将通过 `wp_connectors::elasticsearch::*` 暴露 sink 实现
-}
+pub mod elasticsearch;
 
 // VictoriaMetrics：可选功能，启用方式 `--features victoriametric`
 #[cfg(feature = "victoriametrics")]
