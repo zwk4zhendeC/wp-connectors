@@ -1,6 +1,9 @@
 /// Tag key for access source identifier
 pub const WP_SRC_VAL: &str = "wp_src_val";
 
+// 通用工具模块
+pub mod utils;
+
 // Kafka：默认启用（feature = "kafka" 是默认特性）
 #[cfg(feature = "kafka")]
 pub mod kafka;
@@ -20,6 +23,10 @@ pub mod prometheus;
 // Doris：可选功能，启用方式 `--features doris`
 #[cfg(feature = "doris")]
 pub mod doris;
+
+// count：可选功能，启用方式 `--features count`
+#[cfg(feature = "count")]
+pub mod count;
 
 // VictoriaLog：可选功能，启用方式 `--features victorialog`
 #[cfg(feature = "victorialogs")]
