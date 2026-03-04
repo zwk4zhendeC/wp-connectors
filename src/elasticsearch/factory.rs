@@ -21,7 +21,8 @@ impl SinkFactory for ElasticsearchSinkFactory {
 
         // 验证 protocol（如果提供）
         if let Some(protocol) = optional_string(spec, "protocol")
-            && protocol != "http" && protocol != "https"
+            && protocol != "http"
+            && protocol != "https"
         {
             return Err(
                 SinkReason::sink("elasticsearch.protocol must be 'http' or 'https'").into(),
@@ -32,9 +33,7 @@ impl SinkFactory for ElasticsearchSinkFactory {
         if let Some(port) = get_u64(spec, "port")
             && (port == 0 || port > 65535)
         {
-            return Err(
-                SinkReason::sink("elasticsearch.port must be between 1 and 65535").into(),
-            );
+            return Err(SinkReason::sink("elasticsearch.port must be between 1 and 65535").into());
         }
 
         // 验证 timeout
