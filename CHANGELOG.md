@@ -7,16 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.8] - 2026-02-27
+
 ### Changed
 - Change license from Elastic License 2.0 to Apache License 2.0
 - Update LICENSE file with Apache 2.0 full text
 - Update `license` field in Cargo.toml to `Apache-2.0`
+- Update reqwest requirement from 0.12 to 0.13 (#45)
+- Update env_logger requirement from 0.10 to 0.11 (#46)
+- Refactor Doris connector: migrate from MySQL protocol to Stream Load API (#49)
 
 ### Added
 - Add CONTRIBUTING.md with branch strategy and contribution guidelines (bilingual EN/CN)
 - Add comprehensive README.md with connector overview, features, and project structure (bilingual EN/CN)
 
-## [0.7.4] - 2026-01-12
+### Fixed
+- Remove absolute reliance on the field `wp_event_id` in MySQL sink (#53)
+- Fix Clippy warnings in VictoriaLogs sink
+
+## [0.7.6] - 2026-01-12
 
 ### Added
 - Add version setting in Cargo.toml workspace configuration
@@ -68,7 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial 0.7.x series release.
 
-[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.7.4...HEAD
+[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.7.7...HEAD
+[0.7.7]: https://github.com/wp-labs/wp-connectors/compare/v0.7.6...v0.7.7
+[0.7.6]: https://github.com/wp-labs/wp-connectors/compare/v0.7.5...v0.7.6
+[0.7.5]: https://github.com/wp-labs/wp-connectors/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/wp-labs/wp-connectors/compare/v0.7.4-alpha...v0.7.4
 [0.7.4-alpha]: https://github.com/wp-labs/wp-connectors/compare/v0.7.3-alpha...v0.7.4-alpha
 [0.7.3-alpha]: https://github.com/wp-labs/wp-connectors/compare/v0.7.2-beta...v0.7.3-alpha

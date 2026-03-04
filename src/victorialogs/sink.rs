@@ -180,6 +180,7 @@ impl AsyncRawDataSink for VictoriaLogSink {
     }
 }
 
+// 仅在测试时编译该测试模块
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -137,11 +137,11 @@ impl SinkFactory for MySQLSinkFactory {
             conf.table = Some(s.to_string());
         }
         // Use unsigned extraction to match usize semantics
-        if let Some(i) = spec.params.get("batch").and_then(|v| v.as_u64()) {
+        if let Some(i) = spec.params.get("batch_size").and_then(|v| v.as_u64()) {
             conf.batch = Some(i as usize);
         }
         // columns 列表在新版配置中不在 conf 中，作为外部参数传入 sink
-        let mut columns: Vec<String> =
+        let columns: Vec<String> =
             if let Some(arr) = spec.params.get("columns").and_then(|v| v.as_array()) {
                 let mut out = Vec::with_capacity(arr.len());
                 for item in arr {
@@ -155,11 +155,6 @@ impl SinkFactory for MySQLSinkFactory {
             } else {
                 Vec::new()
             };
-
-        // 内置主键 wp_event_id 必须包含在 columns 中
-        if !columns.contains(&"wp_event_id".to_string()) {
-            columns.push("wp_event_id".to_string());
-        }
         let url = conf.get_database_url();
         let mut opt = ConnectOptions::new(url.clone());
         opt.max_connections(10)
@@ -169,12 +164,13 @@ impl SinkFactory for MySQLSinkFactory {
             .idle_timeout(Duration::from_secs(8))
             .max_lifetime(Duration::from_secs(8))
             .sqlx_logging(false)
+            .map_sqlx_mysql_opts(|opt| opt.statement_cache_capacity(0))
             .sqlx_logging_level(log::LevelFilter::Info);
         let db = Database::connect(opt).await.map_err(|err| {
             SinkError::from(SinkReason::sink(format!("connect mysql fail: {err}")))
         })?;
         let table = conf.table.clone().unwrap_or_else(|| spec.name.clone());
-        let sink = MysqlSink::new(db, table, columns, conf.batch, url);
+        let sink = MysqlSink::new(db, table, columns, conf.batch);
         Ok(SinkHandle::new(Box::new(sink)))
     }
 }
@@ -229,7 +225,7 @@ fn mysql_sink_defaults() -> ParamMap {
     params.insert("database".into(), json!("wp_data"));
     params.insert("table".into(), json!("wp_events"));
     params.insert("username".into(), json!("root"));
-    params.insert("batch".into(), json!(1000));
     params.insert("columns".into(), json!(["wp_event_id", "payload"]));
+    params.insert("batch_size".into(), json!(1024));
     params
 }
