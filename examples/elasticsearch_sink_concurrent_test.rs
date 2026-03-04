@@ -49,10 +49,10 @@ const ES_MAX_RETRIES: i32 = 3;
 const TOTAL_RECORDS: usize = 200_0000; // 200w
 
 /// 并发任务数
-const TASK_COUNT: usize = 4;
+const TASK_COUNT: usize = 8;
 
 /// 每批次大小
-const BATCH_SIZE: usize = 10_0000; // 10w
+const BATCH_SIZE: usize = 8192; // 10w
 
 /// 连续失败阈值（超过此次数停止任务）
 const MAX_CONSECUTIVE_ERRORS: usize = 3;
@@ -85,7 +85,7 @@ async fn create_test_sink() -> ElasticsearchSink {
 async fn main() {
     // 初始化日志（硬编码为 Info 级别，忽略环境变量）
     let _ = env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(log::LevelFilter::Error)
         .try_init();
 
     println!("\n========================================");
