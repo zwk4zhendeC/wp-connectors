@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-05
+
+### Changed
+- Upgrade core WP dependencies to 0.8 series (`wp-connector-api`, `wp-parse-api`, `wp-error`, `wp-specs`, `wp-conf-base`, `wp-log`)
+- Upgrade Orion dependencies (`orion-error` to 0.6, `orion_conf` to 0.5)
+- Bump project version to `0.8.0`
+
+### Fixed
+- Fix Kafka/MySQL build breaks after dependency upgrades
+- Align `RawData` import with new public path (`wp_model_core::raw::RawData`)
+- Align error handling with `orion-error` 0.6 (`ErrorOweBase`, `from_validation()`, `UvsReason::data_error()`)
+
 ## [0.7.8] - 2026-02-27
 
 ### Changed
@@ -77,7 +89,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial 0.7.x series release.
 
-[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.7.7...HEAD
+[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/wp-labs/wp-connectors/compare/v0.7.8...v0.8.0
+[0.7.8]: https://github.com/wp-labs/wp-connectors/compare/v0.7.7...v0.7.8
 [0.7.7]: https://github.com/wp-labs/wp-connectors/compare/v0.7.6...v0.7.7
 [0.7.6]: https://github.com/wp-labs/wp-connectors/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/wp-labs/wp-connectors/compare/v0.7.4...v0.7.5
