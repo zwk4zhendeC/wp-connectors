@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use orion_conf::ErrorOwe;
+use orion_error::ErrorOweBase;
 use rdkafka_wrap::{KWProducer, KWProducerConf, OptionExt};
 use std::collections::HashMap;
 use std::sync::Arc;

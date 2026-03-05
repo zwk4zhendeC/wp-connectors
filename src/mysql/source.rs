@@ -1,6 +1,6 @@
 use crate::mysql::config::MysqlConf as MySqlConf;
 use async_trait::async_trait;
-use orion_error::UvsReason;
+use orion_error::{ToStructError, UvsReason};
 use sea_orm::ConnectionTrait;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, Statement};
 use std::collections::VecDeque;
@@ -10,7 +10,7 @@ use wp_connector_api::{
     DataSource, SourceBatch, SourceError, SourceEvent, SourceReason, SourceResult, Tags,
 };
 use wp_log::info_data;
-use wp_parse_api::RawData;
+use wp_model_core::raw::RawData;
 
 type AnyResult<T> = anyhow::Result<T>;
 
@@ -115,7 +115,11 @@ impl MysqlSource {
                 vec![self.checkpoint.into()],
             ))
             .await
-            .map_err(|e| SourceReason::Uvs(UvsReason::DataError(e.to_string(), Some(200))))?;
+            .map_err(|e| {
+                SourceReason::Uvs(UvsReason::data_error())
+                    .to_err()
+                    .with_detail(e.to_string())
+            })?;
 
         if rows.is_empty() {
             return Err(SourceError::from(SourceReason::EOF));
@@ -123,9 +127,11 @@ impl MysqlSource {
 
         // 填充缓存
         for row in rows {
-            let json_str: String = row
-                .try_get_by_index(0)
-                .map_err(|e| SourceReason::Uvs(UvsReason::DataError(e.to_string(), Some(200))))?;
+            let json_str: String = row.try_get_by_index(0).map_err(|e| {
+                SourceReason::Uvs(UvsReason::data_error())
+                    .to_err()
+                    .with_detail(e.to_string())
+            })?;
             self.data_cache.push_back(json_str);
         }
 
