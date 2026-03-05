@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upgrade Orion dependencies (`orion-error` to 0.6, `orion_conf` to 0.5)
 - Bump project version to `0.9.0`
 - Clarify Elasticsearch connector support in 0.9 (`elasticsearch` feature, included in default features)
+- Adopt version channel policy: odd `minor` for integration, even `minor` for stable, `patch` for fixes only
 
 ### Fixed
 - Fix Kafka/MySQL build breaks after dependency upgrades
