@@ -8,7 +8,7 @@ This project uses a three-tier branch model:
 
 ```
 feature/* ──► develop ──► release/x.y ──► main
-              (alpha)      (beta/rc)     (stable)
+           (integration) (stabilization) (stable)
 ```
 
 ### Branch Overview
@@ -16,8 +16,8 @@ feature/* ──► develop ──► release/x.y ──► main
 | Branch | Purpose | Stability |
 |--------|---------|-----------|
 | `main` | Production releases | Stable |
-| `develop` | Development mainline, continuous integration | Alpha |
-| `release/x.y` | Release branch, feature-frozen, bug fixes only | Beta/RC |
+| `develop` | Development mainline, continuous integration | Integration |
+| `release/x.y` | Release branch, feature-frozen, bug fixes only | Stabilization |
 | `feature/*` | Feature development branches | Unstable |
 | `issues/*` | Issue fix branches | Unstable |
 
@@ -29,8 +29,8 @@ feature/* ──► develop ──► release/x.y ──► main
 
 2. **Release Preparation**
    - Create `release/x.y` branch from `develop`
-   - Perform beta testing and bug fixes on the release branch
-   - Publish RC versions for final validation
+   - Perform validation and bug fixes on the release branch
+   - Keep feature-freeze on release branch (no new features)
 
 3. **Production Release**
    - Merge `release/x.y` into `main`
@@ -44,10 +44,12 @@ feature/* ──► develop ──► release/x.y ──► main
 
 ### Version Naming
 
-- Alpha: `x.y.z-alpha.n` (e.g. `0.8.0-alpha.1`)
-- Beta: `x.y.z-beta.n` (e.g. `0.8.0-beta.1`)
-- RC: `x.y.z-rc.n` (e.g. `0.8.0-rc.1`)
-- Stable: `x.y.z` (e.g. `0.8.0`)
+- Release version: `x.y.z` (e.g. `0.8.0`)
+- This project does not publish pre-release suffix versions (`alpha`/`beta`/`rc`)
+- Minor channel policy:
+- Odd `minor` (`0.7.x`, `0.9.x`) is integration/feature channel
+- Even `minor` (`0.8.x`, `0.10.x`) is stable release channel
+- `patch` (`x.y.z` -> `z`) is for fixes/docs/security, no new features
 
 ## Development Environment
 
@@ -187,7 +189,7 @@ This project is licensed under [Apache License 2.0](./LICENSE). By contributing,
 
 ```
 feature/* ──► develop ──► release/x.y ──► main
-              (alpha)      (beta/rc)     (stable)
+           (integration) (stabilization) (stable)
 ```
 
 ### 分支说明
@@ -195,8 +197,8 @@ feature/* ──► develop ──► release/x.y ──► main
 | 分支 | 用途 | 稳定性 |
 |------|------|--------|
 | `main` | 正式发布版本 | 稳定 |
-| `develop` | 开发主线，持续集成 | Alpha |
-| `release/x.y` | 版本发布分支，功能冻结，只修 bug | Beta/RC |
+| `develop` | 开发主线，持续集成 | 集成通道 |
+| `release/x.y` | 版本发布分支，功能冻结，只修 bug | 稳定化通道 |
 | `feature/*` | 功能开发分支 | 不稳定 |
 | `issues/*` | Issue 修复分支 | 不稳定 |
 
@@ -208,8 +210,8 @@ feature/* ──► develop ──► release/x.y ──► main
 
 2. **版本发布准备**
    - 从 `develop` 创建 `release/x.y` 分支
-   - 在 release 分支上进行 Beta 测试和 bug 修复
-   - 发布 RC 版本进行最终验证
+   - 在 release 分支上进行验证和 bug 修复
+   - release 分支保持功能冻结（不引入新特性）
 
 3. **正式发布**
    - `release/x.y` 合并到 `main`
@@ -223,10 +225,12 @@ feature/* ──► develop ──► release/x.y ──► main
 
 ### 版本命名
 
-- Alpha: `x.y.z-alpha.n`（如 `0.8.0-alpha.1`）
-- Beta: `x.y.z-beta.n`（如 `0.8.0-beta.1`）
-- RC: `x.y.z-rc.n`（如 `0.8.0-rc.1`）
-- 正式: `x.y.z`（如 `0.8.0`）
+- 正式版本号：`x.y.z`（如 `0.8.0`）
+- 本项目不发布带预发布后缀的版本（`alpha`/`beta`/`rc`）
+- Minor 通道策略：
+- 奇数 `minor`（如 `0.7.x`、`0.9.x`）用于集成/特性通道
+- 偶数 `minor`（如 `0.8.x`、`0.10.x`）用于稳定发布通道
+- `patch`（`x.y.z` 的 `z`）仅用于修复/文档/安全更新，不引入新特性
 
 ## 开发环境
 
