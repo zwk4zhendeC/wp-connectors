@@ -1,6 +1,9 @@
 /// Tag key for access source identifier
 pub const WP_SRC_VAL: &str = "wp_src_val";
 
+// 通用工具模块
+pub mod utils;
+
 // Kafka：默认启用（feature = "kafka" 是默认特性）
 #[cfg(feature = "kafka")]
 pub mod kafka;
@@ -17,15 +20,17 @@ pub mod prometheus;
 #[cfg(feature = "doris")]
 pub mod doris;
 
+// count：可选功能，启用方式 `--features count`
+#[cfg(feature = "count")]
+pub mod count;
+
 // VictoriaLog：可选功能，启用方式 `--features victorialog`
 #[cfg(feature = "victorialogs")]
 pub mod victorialogs;
 
-// Elasticsearch：预留可选特性，后续接入独立子 crate 时再暴露实现
+// Elasticsearch：可选功能，启用方式 `--features elasticsearch`
 #[cfg(feature = "elasticsearch")]
-pub mod elasticsearch {
-    //! 占位模块：后续将通过 `wp_connectors::elasticsearch::*` 暴露 sink 实现
-}
+pub mod elasticsearch;
 
 // VictoriaMetrics：可选功能，启用方式 `--features victoriametric`
 #[cfg(feature = "victoriametrics")]

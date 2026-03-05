@@ -15,16 +15,21 @@
 //! - 重试时使用相同 label，避免数据重复
 
 use crate::doris::config::DorisSinkConfig;
+use crate::utils::time_stat_utils::TimeStatUtils;
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use wp_connector_api::{
     AsyncCtrl, AsyncRawDataSink, AsyncRecordSink, SinkError, SinkReason, SinkResult,
 };
 use wp_model_core::model::{DataRecord, DataType};
+
+// 全局原子计数器，用于生成唯一的实例 ID
+static INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub struct DorisSink {
     client: Client,
@@ -33,6 +38,9 @@ pub struct DorisSink {
     password: String,
     max_retries: i32,
     headers: HashMap<String, String>,
+    instance_id: u64, // 实例唯一 ID
+    // 时间统计工具
+    time_stats: TimeStatUtils,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,6 +78,9 @@ impl DorisSink {
             config.endpoint, config.database, config.table
         );
 
+        // 从全局原子变量获取递增的实例 ID
+        let instance_id = INSTANCE_COUNTER.fetch_add(1, Ordering::SeqCst);
+
         Ok(Self {
             client,
             url,
@@ -77,12 +88,14 @@ impl DorisSink {
             password: config.password,
             max_retries: config.max_retries,
             headers: config.headers.unwrap_or_default(),
+            instance_id,
+            time_stats: TimeStatUtils::new(),
         })
     }
 
     /// 生成唯一的 label 用于 Stream Load。
     ///
-    /// 使用当前时间戳作为 label，确保每次请求都有唯一标识。
+    /// 使用实例 ID + 计数器 + 时间戳，确保每次请求都有唯一标识。
     ///
     /// # Returns
     /// * `SinkResult<String>` - label 字符串
@@ -90,9 +103,13 @@ impl DorisSink {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| sink_error(format!("failed to get timestamp: {}", e)))?
-            .as_millis();
+            .as_nanos();
 
-        Ok(format!("doris_load_{}", timestamp))
+        // 格式: doris_load_{实例ID}_{计数器}_{纳秒时间戳}
+        Ok(format!(
+            "doris_load_{}_{}_{}",
+            self.instance_id, self.time_stats.total_count, timestamp
+        ))
     }
 
     /// 将 DataRecord 转换为 JSON 对象。
@@ -294,10 +311,21 @@ impl AsyncRecordSink for DorisSink {
             return Ok(());
         }
 
+        // 开始统计
+        self.time_stats.start_stat(data.len() as u64);
+
         // 生成label
         let label = self.generate_label()?;
         let ndjson = self.records_to_ndjson(&data)?;
         self.stream_load(&label, ndjson).await?;
+
+        // 结束统计
+        self.time_stats.end_stat();
+
+        // 打印统计信息
+        self.time_stats
+            .println(&format!("DorisSink-{}", self.instance_id));
+
         Ok(())
     }
 }
@@ -326,9 +354,4 @@ impl AsyncRawDataSink for DorisSink {
 /// 统一封装 sink 层错误。
 fn sink_error(msg: impl Into<String>) -> SinkError {
     SinkError::from(SinkReason::Sink(msg.into()))
-}
-
-#[cfg(test)]
-mod tests {
-    // 测试将在集成测试中实现
 }

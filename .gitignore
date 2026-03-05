@@ -5,3 +5,4 @@ target/
 wp-docs
 Cargo.lock
 .tmp
+.DS_Store
