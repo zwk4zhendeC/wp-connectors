@@ -7,13 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.8.0] - 2026-03-05
+## [0.9.0] - 2026-03-05
 
 ### Changed
 - Upgrade core WP dependencies to 0.8 series (`wp-connector-api`, `wp-parse-api`, `wp-error`, `wp-specs`, `wp-conf-base`, `wp-log`)
 - Upgrade Orion dependencies (`orion-error` to 0.6, `orion_conf` to 0.5)
-- Bump project version to `0.8.0`
-- Clarify Elasticsearch connector support in 0.8 (`elasticsearch` feature, included in default features)
+- Bump project version to `0.9.0`
+- Clarify Elasticsearch connector support in 0.9 (`elasticsearch` feature, included in default features)
 
 ### Fixed
 - Fix Kafka/MySQL build breaks after dependency upgrades
