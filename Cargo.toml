@@ -48,11 +48,13 @@ sqlx = { version = "0.8", default-features = false, features = ["mysql", "runtim
 # Optional Feature Dependencies
 actix-web = "4.12"
 reqwest = { version = "0.13", features = ["json"] }
+clickhouse = "0.14.2"
 prometheus = "0.14"
 regex = "1.12"
 lazy_static = "1.5"
 uuid = { version = "1.19", features = ["v4"] }
 rand = "0.8"
+urlencoding = "2.1"
 
 # Dev Dependencies
 env_logger = "0.11"
@@ -70,7 +72,7 @@ homepage = "https://github.com/wp-labs/wp-connectors"
 [features]
 # 默认只编译 Kafka 相关代码；需要 Prometheus 导出器时启用 `prometheus` 特性
 #default = ["kafka"]
-default = ["kafka", "mysql", "postgres", "prometheus","victoriametrics", "victorialogs","doris","count","elasticsearch"]
+default = ["kafka", "mysql", "postgres", "prometheus","victoriametrics", "victorialogs","doris","count","clickhouse","elasticsearch"]
 kafka = [ "dep:rdkafka-wrap"]
 mysql = []
 postgres = []
@@ -92,7 +94,8 @@ victoriametrics = [
 ]
 doris = ["dep:reqwest"]
 elasticsearch = ["dep:reqwest"]
-clickhouse= []
+# http = ["dep:reqwest"]
+clickhouse = ["dep:reqwest", "dep:clickhouse"]
 full = ["kafka", "mysql", "postgres", "prometheus", "elasticsearch", "clickhouse", "victoriametrics", "victorialogs", "doris"]
 
 [dependencies]
@@ -130,14 +133,18 @@ sea-orm = { workspace = true }
 # Optional Dependencies - using workspace versions
 actix-web = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
+clickhouse = { workspace = true, optional = true }
 prometheus = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 lazy_static = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 rand = { workspace = true }
+urlencoding = { workspace = true }
 
 [dev-dependencies]
 env_logger = { workspace = true }
 chrono = { workspace = true }
 httpmock = "0.8"
+quickcheck = "1.0"
+quickcheck_macros = "1.0"
 # criterion = { version = "0.5", features = ["async_tokio"] }
