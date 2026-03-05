@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use orion_error::ErrorOwe;
+use orion_error::ErrorOweBase;
 use rdkafka_wrap::admin::{AdminClient, AdminOptions, NewTopic, TopicReplication};
 use rdkafka_wrap::client::DefaultClientContext;
 use rdkafka_wrap::config::RDKafkaLogLevel;
@@ -8,7 +8,7 @@ use rdkafka_wrap::types::RDKafkaErrorCode;
 use rdkafka_wrap::{ClientConfig, KWConsumer, KWConsumerConf, Message};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use wp_parse_api::RawData;
+use wp_model_core::raw::RawData;
 
 use crate::WP_SRC_VAL;
 use wp_connector_api::{

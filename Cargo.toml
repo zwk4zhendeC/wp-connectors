@@ -13,20 +13,20 @@ homepage = "https://github.com/wp-labs/wp-connectors"
 
 [workspace.dependencies]
 # WP Core Dependencies - 使用模板变量
-wp-connector-api = "0.7.2"
-wp-parse-api =  "0.7"
+wp-connector-api = "0.8"
+wp-parse-api =  "0.8"
 wp-model-core = "0.8"
-wp-log =  "0.1"
-wp-error =  "0.7"
-wp-specs =  "0.7"
-wp-conf-base = "0.1"
+wp-log =  "0.2"
+wp-error =  "0.8"
+wp-specs =  "0.8"
+wp-conf-base = "0.2"
 wp-data-fmt = "0.2"
 
 wp-schema = { git = "https://github.com/wp-labs/wp-schema.git", tag= "v0.1.6-beta" }
 orion_exp = {  git = "https://github.com/galaxy-sec/orion-exp.git", tag = "v0.1.1" }
 # Orion Dependencies
-orion-error = "0.5"
-orion_conf = { version = "0.4", features = ["yaml", "toml"] }
+orion-error = "0.6"
+orion_conf = { version = "0.5", features = ["yaml", "toml"] }
 
 # Core Runtime Dependencies
 async-trait = "0.1"
