@@ -132,7 +132,10 @@ mod tests {
 
     #[test]
     fn test_default_methods() {
-        assert_eq!(ClickHouseSinkConfig::default_endpoint(), "http://localhost:8123");
+        assert_eq!(
+            ClickHouseSinkConfig::default_endpoint(),
+            "http://localhost:8123"
+        );
         assert_eq!(ClickHouseSinkConfig::default_timeout_secs(), 30);
         assert_eq!(ClickHouseSinkConfig::default_max_retries(), 3);
     }
