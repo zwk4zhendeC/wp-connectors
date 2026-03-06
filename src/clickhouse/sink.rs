@@ -34,10 +34,8 @@ impl ClickHouseSink {
     /// * `anyhow::Result<Self>` - 成功返回初始化后的 sink
     pub async fn new(config: ClickHouseSinkConfig) -> anyhow::Result<Self> {
         // 构建 ClickHouse 客户端
-        let url = format!("http://{}:{}", config.host, config.port);
-
         let client = Client::default()
-            .with_url(url)
+            .with_url(&config.endpoint)
             .with_database(&config.database)
             .with_user(&config.username)
             .with_password(&config.password);
