@@ -21,14 +21,13 @@
 //! # async fn example() -> anyhow::Result<()> {
 //! // 创建配置
 //! let config = ClickHouseSinkConfig::new(
-//!     "localhost".to_string(),        // 主机地址
-//!     Some(8123),                     // 端口（可选，默认 8123，HTTP 接口）
-//!     "default".to_string(),          // 数据库名称
-//!     "wp_nginx".to_string(),         // 表名称
-//!     "default".to_string(),          // 用户名
-//!     "".to_string(),                 // 密码
-//!     Some(30),                       // 超时时间（秒）
-//!     Some(3),                        // 最大重试次数
+//!     "http://localhost:8123".to_string(),  // 端点地址（包含协议、主机和端口）
+//!     "default".to_string(),                // 数据库名称
+//!     "wp_nginx".to_string(),               // 表名称
+//!     "default".to_string(),                // 用户名
+//!     "".to_string(),                       // 密码
+//!     Some(30),                             // 超时时间（秒）
+//!     Some(3),                              // 最大重试次数
 //! );
 //!
 //! // 创建 sink
@@ -47,8 +46,7 @@
 //!
 //! # 配置参数
 //!
-//! - `host`: ClickHouse 主机地址（必填）
-//! - `port`: ClickHouse HTTP 端口号，默认 8123（clickhouse 库使用 HTTP 协议）
+//! - `endpoint`: ClickHouse 端点地址（必填），格式：`http://host:port` 或 `https://host:port`
 //! - `database`: 目标数据库名称（必填）
 //! - `table`: 目标表名称（必填）
 //! - `username`: 认证用户名（必填）

@@ -150,7 +150,10 @@ fn get_i64(spec: &SinkSpec, key: &str) -> Option<i64> {
 /// 生成 ClickHouse Sink 的默认参数
 fn clickhouse_defaults() -> ParamMap {
     let mut params = ParamMap::new();
-    params.insert("endpoint".into(), json!(ClickHouseSinkConfig::default_endpoint()));
+    params.insert(
+        "endpoint".into(),
+        json!(ClickHouseSinkConfig::default_endpoint()),
+    );
     params.insert("database".into(), json!("default"));
     params.insert("table".into(), json!("wp_logs"));
     params.insert("username".into(), json!("default"));
@@ -173,7 +176,10 @@ mod tests {
 
     fn base_spec() -> SinkSpec {
         let mut params = BTreeMap::new();
-        params.insert("endpoint".into(), Value::String("http://localhost:8123".into()));
+        params.insert(
+            "endpoint".into(),
+            Value::String("http://localhost:8123".into()),
+        );
         params.insert("database".into(), Value::String("test_db".into()));
         params.insert("table".into(), Value::String("test_table".into()));
         params.insert("username".into(), Value::String("default".into()));
@@ -196,7 +202,8 @@ mod tests {
     #[test]
     fn validate_rejects_empty_endpoint() {
         let mut spec = base_spec();
-        spec.params.insert("endpoint".into(), Value::String("".into()));
+        spec.params
+            .insert("endpoint".into(), Value::String("".into()));
         let factory = ClickHouseSinkFactory;
         assert!(factory.validate_spec(&spec).is_err());
     }
@@ -212,7 +219,8 @@ mod tests {
     #[test]
     fn validate_rejects_invalid_endpoint_without_protocol() {
         let mut spec = base_spec();
-        spec.params.insert("endpoint".into(), Value::String("localhost:8123".into()));
+        spec.params
+            .insert("endpoint".into(), Value::String("localhost:8123".into()));
         let factory = ClickHouseSinkFactory;
         assert!(factory.validate_spec(&spec).is_err());
     }
@@ -220,7 +228,10 @@ mod tests {
     #[test]
     fn validate_accepts_http_endpoint() {
         let mut spec = base_spec();
-        spec.params.insert("endpoint".into(), Value::String("http://localhost:8123".into()));
+        spec.params.insert(
+            "endpoint".into(),
+            Value::String("http://localhost:8123".into()),
+        );
         let factory = ClickHouseSinkFactory;
         assert!(factory.validate_spec(&spec).is_ok());
     }
@@ -228,7 +239,10 @@ mod tests {
     #[test]
     fn validate_accepts_https_endpoint() {
         let mut spec = base_spec();
-        spec.params.insert("endpoint".into(), Value::String("https://ch.example.com:9440".into()));
+        spec.params.insert(
+            "endpoint".into(),
+            Value::String("https://ch.example.com:9440".into()),
+        );
         let factory = ClickHouseSinkFactory;
         assert!(factory.validate_spec(&spec).is_ok());
     }
@@ -282,8 +296,6 @@ mod tests {
         let factory = ClickHouseSinkFactory;
         assert!(factory.validate_spec(&spec).is_err());
     }
-
-
 
     #[test]
     fn validate_rejects_zero_timeout() {
