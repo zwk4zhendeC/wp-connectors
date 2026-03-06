@@ -103,7 +103,21 @@ impl HttpSink {
     /// Returns a Result containing the formatted string or an error
     fn format_records(&self, records: &[Arc<DataRecord>]) -> SinkResult<String> {
         match self.config.fmt.as_str() {
-            "json" | "ndjson" => {
+            "json" => {
+                // JSON format: array of JSON objects
+                let json_objects: Vec<serde_json::Value> = records
+                    .iter()
+                    .map(|record| {
+                        let json_str = self.format_record_json(record.as_ref())?;
+                        serde_json::from_str(&json_str)
+                            .map_err(|e| sink_error(format!("json parsing failed: {}", e)))
+                    })
+                    .collect::<SinkResult<Vec<_>>>()?;
+
+                serde_json::to_string(&json_objects)
+                    .map_err(|e| sink_error(format!("json array serialization failed: {}", e)))
+            }
+            "ndjson" => {
                 // NDJSON format: one JSON object per line
                 let mut lines = Vec::new();
                 for record in records {
@@ -131,7 +145,8 @@ impl HttpSink {
                 for record in records {
                     lines.push(self.format_record_proto_text(record.as_ref())?);
                 }
-                Ok(lines.join("\n"))
+                // Proto-text 需要空行分隔记录
+                Ok(lines.join("\n\n"))
             }
             _ => Err(sink_error(format!(
                 "unsupported format: {}",
@@ -894,6 +909,99 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn format_records_json_array() {
+        // Test that format_records with "json" format produces a JSON array
+        let config = HttpSinkConfig::new(
+            "http://example.com".to_string(),
+            None,
+            None,
+            None,
+            None,
+            Some("json".to_string()),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        let sink = HttpSink::new(config).await.unwrap();
+
+        let mut record1 = DataRecord::default();
+        record1.append(DataField::from_digit("id", 1));
+        record1.append(DataField::from_chars("name", "alice"));
+
+        let mut record2 = DataRecord::default();
+        record2.append(DataField::from_digit("id", 2));
+        record2.append(DataField::from_chars("name", "bob"));
+
+        let records = vec![Arc::new(record1), Arc::new(record2)];
+        let result = sink.format_records(&records);
+        assert!(result.is_ok());
+
+        let json_str = result.unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+
+        // Should be a JSON array
+        assert!(parsed.is_array());
+        let array = parsed.as_array().unwrap();
+        assert_eq!(array.len(), 2);
+
+        // Check first record
+        assert_eq!(array[0]["id"], 1);
+        assert_eq!(array[0]["name"], "alice");
+
+        // Check second record
+        assert_eq!(array[1]["id"], 2);
+        assert_eq!(array[1]["name"], "bob");
+    }
+
+    #[tokio::test]
+    async fn format_records_ndjson() {
+        // Test that format_records with "ndjson" format produces newline-delimited JSON
+        let config = HttpSinkConfig::new(
+            "http://example.com".to_string(),
+            None,
+            None,
+            None,
+            None,
+            Some("ndjson".to_string()),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        let sink = HttpSink::new(config).await.unwrap();
+
+        let mut record1 = DataRecord::default();
+        record1.append(DataField::from_digit("id", 1));
+        record1.append(DataField::from_chars("name", "alice"));
+
+        let mut record2 = DataRecord::default();
+        record2.append(DataField::from_digit("id", 2));
+        record2.append(DataField::from_chars("name", "bob"));
+
+        let records = vec![Arc::new(record1), Arc::new(record2)];
+        let result = sink.format_records(&records);
+        assert!(result.is_ok());
+
+        let ndjson_str = result.unwrap();
+        let lines: Vec<&str> = ndjson_str.lines().collect();
+
+        // Should have 2 lines
+        assert_eq!(lines.len(), 2);
+
+        // Each line should be valid JSON
+        let parsed1: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(parsed1["id"], 1);
+        assert_eq!(parsed1["name"], "alice");
+
+        let parsed2: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(parsed2["id"], 2);
+        assert_eq!(parsed2["name"], "bob");
+    }
+
+    #[tokio::test]
     async fn format_record_csv() {
         let config = HttpSinkConfig::new(
             "http://example.com".to_string(),
@@ -1009,49 +1117,6 @@ mod tests {
         let proto_str = result.unwrap();
         assert!(proto_str.contains("id: 123"));
         assert!(proto_str.contains("name: \"test\""));
-    }
-
-    #[tokio::test]
-    async fn format_records_ndjson() {
-        let config = HttpSinkConfig::new(
-            "http://example.com".to_string(),
-            None,
-            None,
-            None,
-            None,
-            Some("ndjson".to_string()),
-            None,
-            None,
-            None,
-            None,
-        );
-
-        let sink = HttpSink::new(config).await.unwrap();
-
-        let mut record1 = DataRecord::default();
-        record1.append(DataField::from_digit("id", 1));
-        record1.append(DataField::from_chars("name", "alice"));
-
-        let mut record2 = DataRecord::default();
-        record2.append(DataField::from_digit("id", 2));
-        record2.append(DataField::from_chars("name", "bob"));
-
-        let records = vec![Arc::new(record1), Arc::new(record2)];
-        let result = sink.format_records(&records);
-        assert!(result.is_ok());
-
-        let ndjson_str = result.unwrap();
-        let lines: Vec<&str> = ndjson_str.lines().collect();
-
-        assert_eq!(lines.len(), 2);
-
-        let json1: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
-        assert_eq!(json1["id"], 1);
-        assert_eq!(json1["name"], "alice");
-
-        let json2: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
-        assert_eq!(json2["id"], 2);
-        assert_eq!(json2["name"], "bob");
     }
 
     #[tokio::test]
