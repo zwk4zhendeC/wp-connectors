@@ -1,282 +1,153 @@
 # HTTP Sink 示例和测试
 
-本目录包含 HTTP Sink 的示例程序和并发性能测试。
+本目录包含 HTTP Sink 的完整功能测试示例。
 
 ## 文件说明
 
-- `http_sink_example.rs` - HTTP Sink 基础使用示例
-- `http_sink_concurrent_test.rs` - HTTP Sink 并发性能测试
+- `http_sink_example.rs` - 完整的功能测试程序
+- `http_sink_concurrent_test.rs` - 并发性能测试程序
+- `test_server.py` - Python 测试服务器
 
-## 前置准备
+## 快速开始
 
-### 1. 启动测试 HTTP 服务器
-
-在项目根目录运行 Python 测试服务器：
-
-```bash
-# 使用项目提供的测试服务器（监听 8080 端口）
-python3 test_server.py 8080
-```
-
-或者使用你自己的 HTTP 服务器，确保它：
-- 监听 `localhost:8080`
-- 接受 POST 请求到 `/ingest` 路径
-- 返回 2xx 状态码表示成功
-
-### 2. 编译项目
+### 1. 启动测试服务器
 
 ```bash
-# 开发模式
-cargo build --features http
-
-# 发布模式（推荐用于性能测试）
-cargo build --release --features http
+python3 examples/http/test_server.py
 ```
 
-## 运行示例
+服务器将在 `http://localhost:8080` 上监听，并提供以下接口：
 
-### 基础示例
+- `POST /ingest/{format}` - 接收指定格式的数据（无认证，无压缩）
+- `POST /auth/ingest/{format}` - 接收指定格式的数据（需要认证：root/root）
+- `POST /gzip/ingest/{format}` - 接收 GZIP 压缩的数据
+- `GET /count` - 查看所有格式的统计
+- `GET /details/{format}` - 查看指定格式的最后 3 条数据
 
-演示 HTTP Sink 的基本功能，包括：
-- 单条记录发送
-- 批量记录发送
-- 不同数据格式（JSON, NDJSON, CSV, KV）
-- Gzip 压缩
-- 自定义 HTTP 头
-- Basic 认证
+### 2. 运行功能测试
 
 ```bash
 cargo run --example http_sink_example --features http
 ```
 
-### 并发性能测试
+该测试将执行三类测试：
 
-测试 HTTP Sink 在不同格式和压缩选项下的并发性能：
+1. **基础数据接收**（无压缩，无认证）
+   - 向 `/ingest/{format}` 发送 3 条记录
+   - 测试所有 6 种格式：json, ndjson, csv, kv, raw, proto-text
+
+2. **认证数据接收**（无压缩，需要认证）
+   - 向 `/auth/ingest/{format}` 发送 3 条记录
+   - 使用 Basic Auth（用户名：root，密码：root）
+   - 测试所有 6 种格式
+
+3. **GZIP 压缩数据接收**（GZIP 压缩，无认证）
+   - 向 `/gzip/ingest/{format}` 发送 3 条记录
+   - 数据使用 GZIP 压缩
+   - 测试所有 6 种格式
+
+### 3. 运行并发测试
 
 ```bash
-# 开发模式（调试用）
 cargo run --example http_sink_concurrent_test --features http
-
-# 发布模式（性能测试）
-cargo run --example http_sink_concurrent_test --features http --release
 ```
 
-## 并发性能测试说明
+## 支持的数据格式
 
-### 测试场景
+| 格式 | 说明 | 示例 |
+|------|------|------|
+| `json` | JSON 数组 | `[{"id":1,"name":"alice"},{"id":2,"name":"bob"}]` |
+| `ndjson` | 换行分隔的 JSON | `{"id":1,"name":"alice"}\n{"id":2,"name":"bob"}` |
+| `csv` | CSV 格式（带表头） | `id,name\n1,alice\n2,bob` |
+| `kv` | 键值对格式 | `id=1 name=alice\nid=2 name=bob` |
+| `raw` | 原始字段值（空格分隔） | `1 alice\n2 bob` |
+| `proto-text` | Protocol Buffer 文本格式 | `id: 1\nname: "alice"\n\nid: 2\nname: "bob"` |
 
-测试程序会依次运行以下 8 个场景：
+## 测试结果验证
 
-**不压缩场景：**
-1. JSON (无压缩)
-2. NDJSON (无压缩)
-3. CSV (无压缩)
-4. KV (无压缩)
-
-**Gzip 压缩场景：**
-5. JSON (gzip)
-6. NDJSON (gzip)
-7. CSV (gzip)
-8. KV (gzip)
-
-### 测试参数
-
-默认配置（可在代码中修改）：
-
-```rust
-const HTTP_ENDPOINT: &str = "http://localhost:8080/ingest";
-const TOTAL_RECORDS: usize = 100_000;  // 每场景 10 万条记录
-const TASK_COUNT: usize = 4;           // 4 个并发任务
-const BATCH_SIZE: usize = 1000;        // 每批 1000 条
-const TIMEOUT_SECS: u64 = 30;          // 30 秒超时
-const MAX_RETRIES: i32 = 3;            // 最多重试 3 次
-```
-
-### 输出示例
-
-```
-╔════════════════════════════════════════╗
-║   HTTP Sink 并发性能测试               ║
-╚════════════════════════════════════════╝
-
-测试配置:
-  HTTP 端点: http://localhost:8080/ingest
-  总记录数: 100000 (每场景)
-  并发任务数: 4
-  批次大小: 1000
-  超时时间: 30s
-  最大重试: 3 次
-
-将运行 8 个测试场景
-
-▶ 场景 1/8: JSON (无压缩)
-
-========================================
-测试场景: JSON (无压缩)
-========================================
-  格式: json
-  压缩: none
-  总记录数: 100000
-  并发任务数: 4
-  批次大小: 1000
-
-  [Task 0] 已发送 10000/25000 条记录 (5234 records/s)
-  [Task 1] 已发送 10000/25000 条记录 (5198 records/s)
-  ...
-
-----------------------------------------
-测试结果:
-  成功发送: 100000 条记录
-  失败任务: 0 个
-  总耗时: 19.23s
-  平均吞吐量: 5200 records/s
-  平均延迟: 0.19ms/record
-----------------------------------------
-
-...（其他场景）
-
-╔════════════════════════════════════════╗
-║   测试总结                             ║
-╚════════════════════════════════════════╝
-
-各场景耗时:
-  JSON (无压缩): 19.23s
-  NDJSON (无压缩): 18.95s
-  CSV (无压缩): 20.12s
-  KV (无压缩): 18.76s
-  JSON (gzip): 21.45s
-  NDJSON (gzip): 20.89s
-  CSV (gzip): 22.34s
-  KV (gzip): 21.12s
-
-总耗时: 163.86s
-
-✅ 所有测试完成！
-```
-
-## 性能优化建议
-
-### 1. 使用发布模式
+### 查看统计信息
 
 ```bash
-cargo run --example http_sink_concurrent_test --features http --release
+curl http://localhost:8080/count
 ```
 
-发布模式比开发模式快 10-100 倍。
-
-### 2. 调整并发参数
-
-根据你的服务器性能调整：
-
-```rust
-const TASK_COUNT: usize = 8;      // 增加并发任务数
-const BATCH_SIZE: usize = 5000;   // 增加批次大小
+预期输出：
+```json
+{
+  "status": "success",
+  "counts": {
+    "json": 9,
+    "ndjson": 9,
+    "csv": 9,
+    "kv": 9,
+    "raw": 9,
+    "proto-text": 9
+  },
+  "total": 54
+}
 ```
 
-### 3. 使用压缩
+每种格式应该接收到 9 条记录（3 个测试类别 × 3 条记录）。
 
-对于网络带宽受限的场景，gzip 压缩可以显著减少传输数据量：
+### 查看特定格式的详细数据
 
-```rust
-compression: "gzip"  // 通常可减少 60-80% 的数据量
+```bash
+curl http://localhost:8080/details/json
 ```
 
-### 4. 选择合适的格式
+## 测试服务器功能
 
-- **JSON**: 最通用，易于调试
-- **NDJSON**: 适合流式处理和批量操作
-- **CSV**: 数据量最小，适合表格数据
-- **KV**: 简单键值对，适合日志场景
+测试服务器会：
+
+1. **接收数据** - 接收 HTTP POST 请求
+2. **输出原始内容** - 在控制台打印接收到的原始数据
+3. **解析数据** - 根据格式解析数据
+4. **验证格式** - 如果解析失败则返回错误
+5. **统计数据** - 成功解析后加入统计
 
 ## 故障排查
 
 ### 连接被拒绝
 
-```
-Error: request failed: error sending request for url (http://localhost:8080/ingest): error trying to connect: tcp connect error: Connection refused
-```
-
-**解决方案**: 确保测试服务器正在运行：
+确保测试服务器正在运行：
 ```bash
-python3 test_server.py 8080
+python3 examples/http/test_server.py
 ```
 
-### 超时错误
+### 认证失败
 
-```
-Error: request failed: operation timed out
-```
+确保使用正确的用户名和密码：
+- 用户名：`root`
+- 密码：`root`
 
-**解决方案**:
-1. 增加超时时间：`const TIMEOUT_SECS: u64 = 60;`
-2. 减少批次大小：`const BATCH_SIZE: usize = 500;`
-3. 检查服务器性能
+### 格式解析失败
 
-### 连续失败
+检查测试服务器的控制台输出，查看详细的错误信息。
 
-```
-Task 0 连续失败 3 次，停止任务
-```
+## 配置说明
 
-**解决方案**:
-1. 检查服务器日志
-2. 增加重试次数：`const MAX_RETRIES: i32 = 5;`
-3. 增加重试延迟：`const ERROR_RETRY_DELAY_MS: u64 = 500;`
+HTTP Sink 支持以下配置参数：
 
-## 自定义测试
+- `endpoint` - HTTP(S) 端点 URL（必填）
+- `method` - HTTP 方法（默认：POST）
+- `username` - Basic Auth 用户名（可选）
+- `password` - Basic Auth 密码（可选）
+- `headers` - 自定义 HTTP 头（可选）
+- `fmt` - 输出格式（默认：json）
+- `batch_size` - 批量大小（默认：1）
+- `timeout_secs` - 超时时间（默认：60 秒）
+- `max_retries` - 最大重试次数（默认：3）
+- `compression` - 压缩算法（默认：none，支持：gzip）
 
-### 修改测试端点
+## 性能测试
 
-编辑 `http_sink_concurrent_test.rs`:
+并发测试程序 `http_sink_concurrent_test.rs` 可以测试 HTTP Sink 的并发性能：
 
-```rust
-const HTTP_ENDPOINT: &str = "https://your-api.com/webhook";
-```
-
-### 添加认证
-
-修改 `create_test_sink` 函数：
-
-```rust
-let config = HttpSinkConfig::new(
-    HTTP_ENDPOINT.to_string(),
-    Some(HTTP_METHOD.to_string()),
-    Some("username".to_string()),  // 添加用户名
-    Some("password".to_string()),  // 添加密码
-    None,
-    Some(format.to_string()),
-    None,
-    Some(TIMEOUT_SECS),
-    Some(MAX_RETRIES),
-    Some(compression.to_string()),
-);
+```bash
+cargo run --example http_sink_concurrent_test --features http
 ```
 
-### 添加自定义头
-
-```rust
-use std::collections::HashMap;
-
-let mut headers = HashMap::new();
-headers.insert("X-API-Key".to_string(), "your-api-key".to_string());
-headers.insert("X-Custom-Header".to_string(), "value".to_string());
-
-let config = HttpSinkConfig::new(
-    HTTP_ENDPOINT.to_string(),
-    Some(HTTP_METHOD.to_string()),
-    None,
-    None,
-    Some(headers),  // 添加自定义头
-    Some(format.to_string()),
-    None,
-    Some(TIMEOUT_SECS),
-    Some(MAX_RETRIES),
-    Some(compression.to_string()),
-);
-```
-
-## 相关文档
-
-- [HTTP Sink 设计文档](../../.kiro/specs/http-sink/design.md)
-- [HTTP Sink 需求文档](../../.kiro/specs/http-sink/requirements.md)
-- [HTTP Sink 实现任务](../../.kiro/specs/http-sink/tasks.md)
+可以通过修改程序中的常量来调整测试参数：
+- `TOTAL_RECORDS` - 总记录数
+- `TASK_COUNT` - 并发任务数
+- `BATCH_SIZE` - 每批次大小

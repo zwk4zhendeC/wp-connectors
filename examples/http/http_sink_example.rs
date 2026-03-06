@@ -1,17 +1,16 @@
 //! HTTP Sink 示例程序
 //!
 //! 演示如何使用 HTTP Sink 发送数据到 HTTP/HTTPS 端点
+//! 配合 test_server.py 进行完整的功能测试
 //!
 //! 运行方式：
-//! ```bash
-//! cargo run --example http_sink_example --features http
-//! ```
+//! 1. 启动测试服务器: python3 examples/http/test_server.py
+//! 2. 运行示例: cargo run --example http_sink_example --features http
 
 // 引入共享的工具函数（从上级目录）
 #[path = "../common_utils.rs"]
 mod common_utils;
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use wp_connector_api::AsyncRecordSink;
 use wp_connectors::http::{HttpSink, HttpSinkConfig};
@@ -21,17 +20,11 @@ use wp_model_core::model::DataRecord;
 // 配置常量
 // ========================================
 
-/// HTTP 端点 URL
-const HTTP_ENDPOINT: &str = "http://localhost:8081/ingest";
+/// 测试服务器地址
+const SERVER_HOST: &str = "http://localhost:8080";
 
 /// HTTP 方法
 const HTTP_METHOD: &str = "POST";
-
-/// 输出格式
-const OUTPUT_FORMAT: &str = "json";
-
-/// 批量大小
-const BATCH_SIZE: usize = 2;
 
 /// 请求超时时间（秒）
 const TIMEOUT_SECS: u64 = 30;
@@ -39,191 +32,43 @@ const TIMEOUT_SECS: u64 = 30;
 /// 最大重试次数
 const MAX_RETRIES: i32 = 3;
 
-/// 压缩算法
-const COMPRESSION: &str = "none";
+/// 测试记录数
+const TEST_RECORD_COUNT: usize = 3;
 
-/// 创建测试用的 HttpSink
-async fn create_test_sink() -> HttpSink {
-    // 创建自定义 HTTP 头
-    let mut headers = HashMap::new();
-    headers.insert("X-Custom-Header".to_string(), "test-value".to_string());
-    headers.insert("X-API-Key".to_string(), "your-api-key-here".to_string());
+/// 所有支持的格式
+const ALL_FORMATS: &[&str] = &["json", "ndjson", "csv", "kv", "raw", "proto-text"];
 
-    let config = HttpSinkConfig::new(
-        HTTP_ENDPOINT.to_string(),
-        Some(HTTP_METHOD.to_string()),
-        None, // username
-        None, // password
-        Some(headers),
-        Some(OUTPUT_FORMAT.to_string()),
-        Some(BATCH_SIZE),
-        Some(TIMEOUT_SECS),
-        Some(MAX_RETRIES),
-        Some(COMPRESSION.to_string()),
-    );
-
-    HttpSink::new(config)
-        .await
-        .expect("Failed to create HttpSink")
+/// 创建测试记录
+fn create_test_records(count: usize, start_id: i64) -> Vec<Arc<DataRecord>> {
+    (0..count)
+        .map(|i| Arc::new(common_utils::create_sample_record(start_id + i as i64)))
+        .collect()
 }
 
-/// 示例 1: 发送单条记录
-async fn example_single_record() {
-    println!("\n========================================");
-    println!("示例 1: 发送单条记录");
-    println!("========================================\n");
+/// 测试类别 1: 所有格式不压缩，向 /ingest/{格式} 发送数据
+async fn test_category_1_basic_ingest() {
+    println!("\n╔════════════════════════════════════════════════════════════════╗");
+    println!("║  测试类别 1: 基础数据接收 (无压缩, 无认证)                    ║");
+    println!("╚════════════════════════════════════════════════════════════════╝\n");
 
-    let mut sink = create_test_sink().await;
+    for fmt in ALL_FORMATS {
+        println!("📋 测试格式: {}", fmt);
+        println!("   端点: {}/ingest/{}", SERVER_HOST, fmt);
+        println!("   压缩: 无");
+        println!("   认证: 无");
 
-    // 创建一条测试记录
-    let record = common_utils::create_sample_record(1);
-
-    println!("📤 发送单条记录到: {}", HTTP_ENDPOINT);
-    println!("   格式: {}", OUTPUT_FORMAT);
-    println!("   方法: {}", HTTP_METHOD);
-
-    // 发送记录
-    match sink.sink_record(&record).await {
-        Ok(_) => {
-            println!("✅ 记录发送成功");
-        }
-        Err(e) => {
-            eprintln!("❌ 记录发送失败: {}", e);
-        }
-    }
-}
-
-/// 示例 2: 批量发送记录
-async fn example_batch_records() {
-    println!("\n========================================");
-    println!("示例 2: 批量发送记录");
-    println!("========================================\n");
-
-    let mut sink = create_test_sink().await;
-
-    // 创建一批测试记录
-    let records: Vec<Arc<DataRecord>> = (1..=BATCH_SIZE)
-        .map(|i| Arc::new(common_utils::create_sample_record(i as i64)))
-        .collect();
-
-    println!("📤 批量发送 {} 条记录到: {}", records.len(), HTTP_ENDPOINT);
-    println!("   格式: {}", OUTPUT_FORMAT);
-    println!("   方法: {}", HTTP_METHOD);
-
-    // 批量发送记录
-    match sink.sink_records(records).await {
-        Ok(_) => {
-            println!("✅ 批量记录发送成功");
-        }
-        Err(e) => {
-            eprintln!("❌ 批量记录发送失败: {}", e);
-        }
-    }
-}
-
-/// 示例 3: 使用 Basic 认证
-async fn example_with_auth() {
-    println!("\n========================================");
-    println!("示例 3: 使用 HTTP Basic 认证");
-    println!("========================================\n");
-
-    let config = HttpSinkConfig::new(
-        HTTP_ENDPOINT.to_string(),
-        Some(HTTP_METHOD.to_string()),
-        Some("username".to_string()), // Basic Auth 用户名
-        Some("password".to_string()), // Basic Auth 密码
-        None,                         // headers
-        Some(OUTPUT_FORMAT.to_string()),
-        Some(1),
-        Some(TIMEOUT_SECS),
-        Some(MAX_RETRIES),
-        Some(COMPRESSION.to_string()),
-    );
-
-    let mut sink = HttpSink::new(config)
-        .await
-        .expect("Failed to create HttpSink with auth");
-
-    let record = common_utils::create_sample_record(100);
-
-    println!("📤 发送带认证的记录到: {}", HTTP_ENDPOINT);
-    println!("   用户名: username");
-    println!("   密码: ********");
-
-    match sink.sink_record(&record).await {
-        Ok(_) => {
-            println!("✅ 带认证的记录发送成功");
-        }
-        Err(e) => {
-            eprintln!("❌ 带认证的记录发送失败: {}", e);
-        }
-    }
-}
-
-/// 示例 4: 使用 Gzip 压缩
-async fn example_with_compression() {
-    println!("\n========================================");
-    println!("示例 4: 使用 Gzip 压缩");
-    println!("========================================\n");
-
-    let config = HttpSinkConfig::new(
-        HTTP_ENDPOINT.to_string(),
-        Some(HTTP_METHOD.to_string()),
-        None,
-        None,
-        None,
-        Some(OUTPUT_FORMAT.to_string()),
-        Some(BATCH_SIZE),
-        Some(TIMEOUT_SECS),
-        Some(MAX_RETRIES),
-        Some("gzip".to_string()), // 启用 gzip 压缩
-    );
-
-    let mut sink = HttpSink::new(config)
-        .await
-        .expect("Failed to create HttpSink with compression");
-
-    let records: Vec<Arc<DataRecord>> = (1..=BATCH_SIZE)
-        .map(|i| Arc::new(common_utils::create_sample_record(i as i64)))
-        .collect();
-
-    println!("📤 发送压缩数据到: {}", HTTP_ENDPOINT);
-    println!("   压缩算法: gzip");
-    println!("   记录数: {}", records.len());
-
-    match sink.sink_records(records).await {
-        Ok(_) => {
-            println!("✅ 压缩数据发送成功");
-        }
-        Err(e) => {
-            eprintln!("❌ 压缩数据发送失败: {}", e);
-        }
-    }
-}
-
-/// 示例 5: 不同的输出格式
-async fn example_different_formats() {
-    println!("\n========================================");
-    println!("示例 5: 不同的输出格式");
-    println!("========================================\n");
-
-    // let formats = vec!["json", "ndjson", "csv", "kv", "raw", "proto-text"];
-    let formats = vec!["json", "ndjson", "csv", "kv", "raw", "proto-text"];
-    for fmt in formats {
-        println!("\n📋 测试格式: {}", fmt);
-        // ;
+        let endpoint = format!("{}/ingest/{}", SERVER_HOST, fmt);
         let config = HttpSinkConfig::new(
-            // HTTP_ENDPOINT.to_string()+"/",
-            format!("{}/{}",HTTP_ENDPOINT.to_string(),fmt.to_string()),
+            endpoint,
             Some(HTTP_METHOD.to_string()),
+            None, // 无认证
             None,
-            None,
-            None,
+            None, // 无自定义头
             Some(fmt.to_string()),
-            Some(1),
+            None, // 使用默认批量大小
             Some(TIMEOUT_SECS),
             Some(MAX_RETRIES),
-            Some(COMPRESSION.to_string()),
+            Some("none".to_string()), // 无压缩
         );
 
         let mut sink = match HttpSink::new(config).await {
@@ -234,61 +79,147 @@ async fn example_different_formats() {
             }
         };
 
-        let record = common_utils::create_sample_record(200);
+        // 创建测试记录
+        let records = create_test_records(TEST_RECORD_COUNT, 1000);
 
-        match sink.sink_record(&record).await {
+        // 发送数据
+        match sink.sink_records(records).await {
             Ok(_) => {
-                println!("   ✅ {} 格式发送成功", fmt);
+                println!("   ✅ {} 格式发送成功 ({} 条记录)", fmt, TEST_RECORD_COUNT);
             }
             Err(e) => {
                 eprintln!("   ❌ {} 格式发送失败: {}", fmt, e);
             }
         }
+
+        println!();
     }
 }
 
-/// 示例 6: 错误处理和重试
-async fn example_error_handling() {
-    println!("\n========================================");
-    println!("示例 6: 错误处理和重试");
-    println!("========================================\n");
+/// 测试类别 2: 所有格式不压缩，向 /auth/ingest/{格式} 发送数据（需要认证）
+async fn test_category_2_auth_ingest() {
+    println!("\n╔════════════════════════════════════════════════════════════════╗");
+    println!("║  测试类别 2: 认证数据接收 (无压缩, 需要认证)                  ║");
+    println!("╚════════════════════════════════════════════════════════════════╝\n");
 
-    // 使用一个不存在的端点来演示错误处理
-    let invalid_endpoint = "http://localhost:9999/nonexistent";
+    for fmt in ALL_FORMATS {
+        println!("📋 测试格式: {}", fmt);
+        println!("   端点: {}/auth/ingest/{}", SERVER_HOST, fmt);
+        println!("   压缩: 无");
+        println!("   认证: root / root");
 
-    let config = HttpSinkConfig::new(
-        invalid_endpoint.to_string(),
-        Some(HTTP_METHOD.to_string()),
-        None,
-        None,
-        None,
-        Some(OUTPUT_FORMAT.to_string()),
-        Some(1),
-        Some(5), // 短超时
-        Some(2), // 只重试 2 次
-        Some(COMPRESSION.to_string()),
-    );
+        let endpoint = format!("{}/auth/ingest/{}", SERVER_HOST, fmt);
+        let config = HttpSinkConfig::new(
+            endpoint,
+            Some(HTTP_METHOD.to_string()),
+            Some("root".to_string()), // 用户名
+            Some("root".to_string()), // 密码
+            None,                     // 无自定义头
+            Some(fmt.to_string()),
+            None, // 使用默认批量大小
+            Some(TIMEOUT_SECS),
+            Some(MAX_RETRIES),
+            Some("none".to_string()), // 无压缩
+        );
 
-    let mut sink = HttpSink::new(config)
-        .await
-        .expect("Failed to create HttpSink");
+        let mut sink = match HttpSink::new(config).await {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("   ❌ 创建 Sink 失败: {}", e);
+                continue;
+            }
+        };
 
-    let record = common_utils::create_sample_record(300);
+        // 创建测试记录
+        let records = create_test_records(TEST_RECORD_COUNT, 2000);
 
-    println!("📤 尝试发送到无效端点: {}", invalid_endpoint);
-    println!("   最大重试次数: 2");
-    println!("   超时时间: 5 秒");
-
-    match sink.sink_record(&record).await {
-        Ok(_) => {
-            println!("✅ 记录发送成功（不太可能）");
+        // 发送数据
+        match sink.sink_records(records).await {
+            Ok(_) => {
+                println!("   ✅ {} 格式发送成功 ({} 条记录)", fmt, TEST_RECORD_COUNT);
+            }
+            Err(e) => {
+                eprintln!("   ❌ {} 格式发送失败: {}", fmt, e);
+            }
         }
-        Err(e) => {
-            println!("❌ 记录发送失败（预期行为）");
-            println!("   错误信息: {}", e);
-            println!("   💡 这演示了 HTTP Sink 的错误处理和重试机制");
-        }
+
+        println!();
     }
+}
+
+/// 测试类别 3: 所有格式使用 gzip 压缩，向 /gzip/ingest/{fmt} 发送数据
+async fn test_category_3_gzip_ingest() {
+    println!("\n╔════════════════════════════════════════════════════════════════╗");
+    println!("║  测试类别 3: GZIP 压缩数据接收 (GZIP 压缩, 无认证)            ║");
+    println!("╚════════════════════════════════════════════════════════════════╝\n");
+
+    for fmt in ALL_FORMATS {
+        println!("📋 测试格式: {}", fmt);
+        println!("   端点: {}/gzip/ingest/{}", SERVER_HOST, fmt);
+        println!("   压缩: gzip");
+        println!("   认证: 无");
+
+        let endpoint = format!("{}/gzip/ingest/{}", SERVER_HOST, fmt);
+        let config = HttpSinkConfig::new(
+            endpoint,
+            Some(HTTP_METHOD.to_string()),
+            None, // 无认证
+            None,
+            None, // 无自定义头
+            Some(fmt.to_string()),
+            None, // 使用默认批量大小
+            Some(TIMEOUT_SECS),
+            Some(MAX_RETRIES),
+            Some("gzip".to_string()), // GZIP 压缩
+        );
+
+        let mut sink = match HttpSink::new(config).await {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("   ❌ 创建 Sink 失败: {}", e);
+                continue;
+            }
+        };
+
+        // 创建测试记录
+        let records = create_test_records(TEST_RECORD_COUNT, 3000);
+
+        // 发送数据
+        match sink.sink_records(records).await {
+            Ok(_) => {
+                println!("   ✅ {} 格式发送成功 ({} 条记录)", fmt, TEST_RECORD_COUNT);
+            }
+            Err(e) => {
+                eprintln!("   ❌ {} 格式发送失败: {}", fmt, e);
+            }
+        }
+
+        println!();
+    }
+}
+
+/// 打印测试统计信息
+async fn print_test_statistics() {
+    println!("\n╔════════════════════════════════════════════════════════════════╗");
+    println!("║  测试统计信息                                                  ║");
+    println!("╚════════════════════════════════════════════════════════════════╝\n");
+
+    println!("💡 查看服务器统计:");
+    println!("   curl http://localhost:8080/count");
+    println!();
+
+    println!("💡 查看特定格式的详细数据:");
+    println!("   curl http://localhost:8080/details/json");
+    println!("   curl http://localhost:8080/details/csv");
+    println!();
+
+    println!("💡 预期结果:");
+    println!(
+        "   每种格式应该接收到 {} 条记录 (3 个测试类别 × {} 条)",
+        TEST_RECORD_COUNT * 3,
+        TEST_RECORD_COUNT
+    );
+    println!();
 }
 
 #[tokio::main]
@@ -298,52 +229,60 @@ async fn main() {
         .filter_level(log::LevelFilter::Info)
         .try_init();
 
-    println!("\n╔════════════════════════════════════════╗");
-    println!("║     HTTP Sink 示例程序                 ║");
-    println!("╚════════════════════════════════════════╝");
+    println!("\n╔════════════════════════════════════════════════════════════════╗");
+    println!("║           HTTP Sink 完整功能测试程序                          ║");
+    println!("╚════════════════════════════════════════════════════════════════╝");
 
-    println!("\n💡 提示:");
-    println!("   本示例需要一个 HTTP 服务器监听 {}", HTTP_ENDPOINT);
-    println!("   你可以使用以下命令启动一个简单的测试服务器:");
-    println!("   python3 -m http.server 8080");
-    println!("   或使用 webhook.site 等在线服务");
+    println!("\n📋 测试配置:");
+    println!("   服务器地址: {}", SERVER_HOST);
+    println!("   测试格式: {:?}", ALL_FORMATS);
+    println!("   每次发送记录数: {}", TEST_RECORD_COUNT);
+    println!("   测试类别数: 3");
     println!();
 
-    // 运行所有示例
-    example_single_record().await;
-    example_batch_records().await;
-    example_with_auth().await;
-    example_with_compression().await;
-    example_different_formats().await;
-    example_error_handling().await;
+    println!("⚠️  重要提示:");
+    println!("   请先启动测试服务器:");
+    println!("   python3 examples/http/test_server.py");
+    println!();
 
-    println!("\n========================================");
-    println!("所有示例执行完成");
-    println!("========================================\n");
+    // 执行三类测试
+    test_category_1_basic_ingest().await;
+    test_category_2_auth_ingest().await;
+    test_category_3_gzip_ingest().await;
 
-    println!("💡 配置说明:");
-    println!("   - endpoint: HTTP(S) 端点 URL（必填）");
-    println!("   - method: HTTP 方法（默认 POST）");
-    println!("   - username/password: Basic 认证（可选）");
-    println!("   - headers: 自定义 HTTP 头（可选）");
-    println!("   - fmt: 输出格式（默认 json）");
-    println!("   - batch_size: 批量大小（默认 1）");
-    println!("   - timeout_secs: 超时时间（默认 60）");
-    println!("   - max_retries: 最大重试次数（默认 3）");
-    println!("   - compression: 压缩算法（默认 none）");
+    // 打印统计信息
+    print_test_statistics().await;
+
+    println!("\n╔════════════════════════════════════════════════════════════════╗");
+    println!("║  所有测试执行完成                                              ║");
+    println!("╚════════════════════════════════════════════════════════════════╝\n");
+
+    println!("📊 测试总结:");
+    println!("   测试类别: 3");
+    println!("   测试格式: {} 种", ALL_FORMATS.len());
+    println!(
+        "   总测试数: {} (3 类别 × {} 格式)",
+        ALL_FORMATS.len() * 3,
+        ALL_FORMATS.len()
+    );
+    println!(
+        "   预期总记录数: {} 条",
+        ALL_FORMATS.len() * 3 * TEST_RECORD_COUNT
+    );
     println!();
 
     println!("💡 支持的输出格式:");
-    println!("   - json: JSON 对象");
-    println!("   - ndjson: 换行分隔的 JSON");
-    println!("   - csv: CSV 格式（带表头）");
-    println!("   - kv: 键值对格式");
-    println!("   - raw: 原始字段值");
+    println!("   - json:       JSON 数组格式 [{{...}}, {{...}}]");
+    println!("   - ndjson:     换行分隔的 JSON (每行一个对象)");
+    println!("   - csv:        CSV 格式（带表头）");
+    println!("   - kv:         键值对格式 (key=value key2=value2)");
+    println!("   - raw:        原始字段值（空格分隔）");
     println!("   - proto-text: Protocol Buffer 文本格式");
     println!();
 
-    println!("💡 支持的压缩算法:");
-    println!("   - none: 不压缩（默认）");
-    println!("   - gzip: Gzip 压缩");
+    println!("� 测试类别说明:");
+    println!("   1. 基础接收:   POST /ingest/{{format}}        (无压缩, 无认证)");
+    println!("   2. 认证接收:   POST /auth/ingest/{{format}}   (无压缩, 需认证 root/root)");
+    println!("   3. 压缩接收:   POST /gzip/ingest/{{format}}   (GZIP 压缩, 无认证)");
     println!();
 }
