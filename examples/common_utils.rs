@@ -1,5 +1,6 @@
 use wp_model_core::model::{DataField, DataRecord};
 
+#[allow(dead_code)]
 pub fn create_sample_record(id: i64) -> DataRecord {
     let mut record = DataRecord::default();
     record.append(DataField::from_digit("wp_event_id", id));

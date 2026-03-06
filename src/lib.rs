@@ -35,3 +35,7 @@ pub mod elasticsearch;
 // VictoriaMetrics：可选功能，启用方式 `--features victoriametric`
 #[cfg(feature = "victoriametrics")]
 pub mod victoriametrics;
+
+// ClickHouse：可选功能，启用方式 `--features clickhouse`
+#[cfg(feature = "clickhouse")]
+pub mod clickhouse;

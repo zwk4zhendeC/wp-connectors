@@ -1,10 +1,10 @@
-//! Elasticsearch 并发异步发送测试程序
+//! ClickHouse 并发异步发送测试程序
 //!
-//! 用于测试多个异步任务并发发送数据到 Elasticsearch
+//! 用于测试多个异步任务并发发送数据到 ClickHouse
 //!
 //! 运行方式：
 //! ```bash
-//! cargo run --example elasticsearch_sink_concurrent_test --features elasticsearch
+//! cargo run --example clickhouse_sink_concurrent_test --features clickhouse
 //! ```
 
 // 引入共享的工具函数
@@ -14,36 +14,33 @@ mod common_utils;
 use std::sync::Arc;
 use std::time::Instant;
 use wp_connector_api::AsyncRecordSink;
-use wp_connectors::elasticsearch::{ElasticsearchSink, ElasticsearchSinkConfig};
+use wp_connectors::clickhouse::{ClickHouseSink, ClickHouseSinkConfig};
 use wp_model_core::model::DataRecord;
 
 // ========================================
 // 配置常量
 // ========================================
 
-/// Elasticsearch 协议
-const ES_PROTOCOL: &str = "http";
+/// ClickHouse 端点地址（包含协议、主机和端口）
+const CH_ENDPOINT: &str = "http://localhost:8123";
 
-/// Elasticsearch 主机地址
-const ES_HOST: &str = "localhost";
+/// ClickHouse 数据库名称
+const CH_DATABASE: &str = "default";
 
-/// Elasticsearch 端口号
-const ES_PORT: u16 = 9200;
+/// ClickHouse 表名称
+const CH_TABLE: &str = "wp_nginx";
 
-/// Elasticsearch 索引名称
-const ES_INDEX: &str = "wp_nginx";
+/// ClickHouse 用户名
+const CH_USERNAME: &str = "default";
 
-/// Elasticsearch 用户名
-const ES_USERNAME: &str = "elastic";
-
-/// Elasticsearch 密码
-const ES_PASSWORD: &str = "zgVClXP2";
+/// ClickHouse 密码
+const CH_PASSWORD: &str = "default";
 
 /// 请求超时时间（秒）
-const ES_TIMEOUT_SECS: u64 = 30;
+const CH_TIMEOUT_SECS: u64 = 30;
 
 /// 最大重试次数
-const ES_MAX_RETRIES: i32 = 3;
+const CH_MAX_RETRIES: i32 = 3;
 
 /// 总记录数
 const TOTAL_RECORDS: usize = 200_0000; // 200w
@@ -52,7 +49,7 @@ const TOTAL_RECORDS: usize = 200_0000; // 200w
 const TASK_COUNT: usize = 8;
 
 /// 每批次大小
-const BATCH_SIZE: usize = 8192; // 10w
+const BATCH_SIZE: usize = 10_0000; // 10w
 
 /// 连续失败阈值（超过此次数停止任务）
 const MAX_CONSECUTIVE_ERRORS: usize = 3;
@@ -63,51 +60,48 @@ const ERROR_RETRY_DELAY_MS: u64 = 100;
 /// 进度打印间隔（每发送多少批次打印一次）
 const PROGRESS_PRINT_INTERVAL: usize = 10;
 
-/// 创建测试用的 ElasticsearchSink
-async fn create_test_sink() -> ElasticsearchSink {
-    let config = ElasticsearchSinkConfig::new(
-        Some(ES_PROTOCOL.to_string()),
-        ES_HOST.to_string(),
-        Some(ES_PORT),
-        ES_INDEX.to_string(),
-        ES_USERNAME.to_string(),
-        ES_PASSWORD.to_string(),
-        Some(ES_TIMEOUT_SECS),
-        Some(ES_MAX_RETRIES),
+/// 创建测试用的 ClickHouseSink
+async fn create_test_sink() -> ClickHouseSink {
+    let config = ClickHouseSinkConfig::new(
+        CH_ENDPOINT.to_string(),
+        CH_DATABASE.to_string(),
+        CH_TABLE.to_string(),
+        CH_USERNAME.to_string(),
+        CH_PASSWORD.to_string(),
+        Some(CH_TIMEOUT_SECS),
+        Some(CH_MAX_RETRIES),
     );
 
-    ElasticsearchSink::new(config)
+    ClickHouseSink::new(config)
         .await
-        .expect("Failed to create ElasticsearchSink")
+        .expect("Failed to create ClickHouseSink")
 }
 
 #[tokio::main]
 async fn main() {
     // 初始化日志（硬编码为 Info 级别，忽略环境变量）
     let _ = env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Error)
+        .filter_level(log::LevelFilter::Info)
         .try_init();
 
     println!("\n========================================");
-    println!("\n========================================");
-    println!("Elasticsearch 并发异步发送测试");
+    println!("ClickHouse 并发异步发送测试");
     println!("========================================\n");
 
     let records_per_task = TOTAL_RECORDS / TASK_COUNT;
 
     println!("测试配置:");
-    println!(
-        "  Elasticsearch 端点: {}://{}:{}",
-        ES_PROTOCOL, ES_HOST, ES_PORT
-    );
-    println!("  索引名称: {}", ES_INDEX);
+    println!("  ClickHouse 端点: {}", CH_ENDPOINT);
+    println!("  数据库: {}", CH_DATABASE);
+    println!("  表名称: {}", CH_TABLE);
     println!("  总记录数: {}", TOTAL_RECORDS);
     println!("  并发任务数: {}", TASK_COUNT);
     println!("  每批次大小: {}", BATCH_SIZE);
     println!("  每任务记录数: {}", records_per_task);
     println!();
+
     // 预先创建所有 sink 实例
-    println!("📦 创建 {} 个 ElasticsearchSink 实例...", TASK_COUNT);
+    println!("📦 创建 {} 个 ClickHouseSink 实例...", TASK_COUNT);
     let mut sinks = Vec::new();
     for i in 0..TASK_COUNT {
         let sink = create_test_sink().await;
@@ -255,27 +249,35 @@ async fn main() {
 
     // 验证建议
     if total_sent > 0 {
-        let endpoint = format!("{}://{}:{}", ES_PROTOCOL, ES_HOST, ES_PORT);
-        println!("💡 验证数据是否到达 Elasticsearch:");
+        println!("💡 验证数据是否到达 ClickHouse:");
         println!(
-            "   curl -u {}:{} -s \"{}/{}/_count?pretty\"",
-            ES_USERNAME, ES_PASSWORD, endpoint, ES_INDEX
+            "   SELECT COUNT(*) FROM {}.{} WHERE wp_src_key LIKE 'concurrent_test_%';",
+            CH_DATABASE, CH_TABLE
         );
-        println!("   -- 应该返回 count: {}", total_sent);
+        println!("   -- 应该返回 {}", total_sent);
         println!();
         println!("💡 查看数据样例:");
         println!(
-            "   curl -u {}:{} -s \"{}/{}/_search?pretty&size=5\"",
-            ES_USERNAME, ES_PASSWORD, endpoint, ES_INDEX
+            "   SELECT * FROM {}.{} WHERE wp_src_key LIKE 'concurrent_test_%' LIMIT 5;",
+            CH_DATABASE, CH_TABLE
         );
+        println!();
+        println!("💡 查看数据分布:");
+        println!(
+            "   SELECT wp_src_key, COUNT(*) as cnt FROM {}.{}",
+            CH_DATABASE, CH_TABLE
+        );
+        println!("   WHERE wp_src_key LIKE 'concurrent_test_%'");
+        println!("   GROUP BY wp_src_key ORDER BY cnt DESC LIMIT 10;");
     }
 
     if failed_tasks > 0 {
         println!("\n⚠️  有 {} 个任务未完成，请检查:", failed_tasks);
-        println!("   1. Elasticsearch 服务状态");
-        println!("   2. Elasticsearch 日志");
+        println!("   1. ClickHouse 服务状态");
+        println!("   2. ClickHouse 日志");
         println!("   3. 网络连接");
-        println!("   4. 索引是否存在");
+        println!("   4. 表结构是否匹配");
+        println!("   5. 数据库和表是否存在");
     }
 
     println!("\n========================================\n");
