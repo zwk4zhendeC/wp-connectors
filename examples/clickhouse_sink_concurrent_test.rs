@@ -21,11 +21,8 @@ use wp_model_core::model::DataRecord;
 // 配置常量
 // ========================================
 
-/// ClickHouse 主机地址
-const CH_HOST: &str = "localhost";
-
-/// ClickHouse 端口号（HTTP 接口）
-const CH_PORT: u16 = 8123;
+/// ClickHouse 端点地址（包含协议、主机和端口）
+const CH_ENDPOINT: &str = "http://localhost:8123";
 
 /// ClickHouse 数据库名称
 const CH_DATABASE: &str = "default";
@@ -66,8 +63,7 @@ const PROGRESS_PRINT_INTERVAL: usize = 10;
 /// 创建测试用的 ClickHouseSink
 async fn create_test_sink() -> ClickHouseSink {
     let config = ClickHouseSinkConfig::new(
-        CH_HOST.to_string(),
-        Some(CH_PORT),
+        CH_ENDPOINT.to_string(),
         CH_DATABASE.to_string(),
         CH_TABLE.to_string(),
         CH_USERNAME.to_string(),
@@ -95,7 +91,7 @@ async fn main() {
     let records_per_task = TOTAL_RECORDS / TASK_COUNT;
 
     println!("测试配置:");
-    println!("  ClickHouse 端点: {}:{}", CH_HOST, CH_PORT);
+    println!("  ClickHouse 端点: {}", CH_ENDPOINT);
     println!("  数据库: {}", CH_DATABASE);
     println!("  表名称: {}", CH_TABLE);
     println!("  总记录数: {}", TOTAL_RECORDS);

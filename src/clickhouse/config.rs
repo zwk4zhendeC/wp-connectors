@@ -2,15 +2,13 @@ use serde::{Deserialize, Serialize};
 
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const DEFAULT_MAX_RETRIES: i32 = 3;
-const DEFAULT_PORT: u16 = 8123;
+const DEFAULT_ENDPOINT: &str = "http://localhost:8123";
 
 /// ClickHouse Sink 的配置结构，使用 clickhouse 库进行批量写入
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClickHouseSinkConfig {
-    /// ClickHouse 主机地址（例如："localhost" 或 "ch.example.com"）
-    pub host: String,
-    /// ClickHouse 端口号（默认 9000 for native protocol）
-    pub port: u16,
+    /// ClickHouse 端点地址（例如："http://localhost:8123" 或 "https://ch.example.com:8443"）
+    pub endpoint: String,
     /// 目标数据库名称
     pub database: String,
     /// 目标表名称
@@ -29,8 +27,7 @@ impl ClickHouseSinkConfig {
     /// 构建配置，应用默认值
     ///
     /// # Arguments
-    /// * `host` - ClickHouse 主机地址
-    /// * `port` - ClickHouse 端口号（默认：9000）
+    /// * `endpoint` - ClickHouse 端点地址（例如："http://localhost:8123"）
     /// * `database` - 目标数据库名称
     /// * `table` - 目标表名称
     /// * `username` - 认证用户名
@@ -40,10 +37,8 @@ impl ClickHouseSinkConfig {
     ///
     /// # Returns
     /// 应用了默认值的 [`ClickHouseSinkConfig`]
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        host: String,
-        port: Option<u16>,
+        endpoint: String,
         database: String,
         table: String,
         username: String,
@@ -52,8 +47,7 @@ impl ClickHouseSinkConfig {
         max_retries: Option<i32>,
     ) -> Self {
         Self {
-            host: host.trim().to_string(),
-            port: port.unwrap_or(Self::default_port()),
+            endpoint: endpoint.trim().to_string(),
             database: database.trim().to_string(),
             table: table.trim().to_string(),
             username: username.trim().to_string(),
@@ -63,8 +57,8 @@ impl ClickHouseSinkConfig {
         }
     }
 
-    pub fn default_port() -> u16 {
-        DEFAULT_PORT
+    pub fn default_endpoint() -> &'static str {
+        DEFAULT_ENDPOINT
     }
 
     pub fn default_timeout_secs() -> u64 {
@@ -83,8 +77,7 @@ mod tests {
     #[test]
     fn test_default_values() {
         let config = ClickHouseSinkConfig::new(
-            "localhost".to_string(),
-            None,
+            "http://localhost:8123".to_string(),
             "test_db".to_string(),
             "test_table".to_string(),
             "user".to_string(),
@@ -93,7 +86,7 @@ mod tests {
             None,
         );
 
-        assert_eq!(config.port, 8123);
+        assert_eq!(config.endpoint, "http://localhost:8123");
         assert_eq!(config.timeout_secs, 30);
         assert_eq!(config.max_retries, 3);
     }
@@ -101,8 +94,7 @@ mod tests {
     #[test]
     fn test_parameter_trimming() {
         let config = ClickHouseSinkConfig::new(
-            "  localhost  ".to_string(),
-            None,
+            "  http://localhost:8123  ".to_string(),
             "  test_db  ".to_string(),
             "  test_table  ".to_string(),
             "  user  ".to_string(),
@@ -111,7 +103,7 @@ mod tests {
             None,
         );
 
-        assert_eq!(config.host, "localhost");
+        assert_eq!(config.endpoint, "http://localhost:8123");
         assert_eq!(config.database, "test_db");
         assert_eq!(config.table, "test_table");
         assert_eq!(config.username, "user");
@@ -120,8 +112,7 @@ mod tests {
     #[test]
     fn test_custom_values() {
         let config = ClickHouseSinkConfig::new(
-            "ch.example.com".to_string(),
-            Some(9440),
+            "https://ch.example.com:9440".to_string(),
             "production_db".to_string(),
             "events".to_string(),
             "admin".to_string(),
@@ -130,8 +121,7 @@ mod tests {
             Some(5),
         );
 
-        assert_eq!(config.host, "ch.example.com");
-        assert_eq!(config.port, 9440);
+        assert_eq!(config.endpoint, "https://ch.example.com:9440");
         assert_eq!(config.database, "production_db");
         assert_eq!(config.table, "events");
         assert_eq!(config.username, "admin");
@@ -142,7 +132,10 @@ mod tests {
 
     #[test]
     fn test_default_methods() {
-        assert_eq!(ClickHouseSinkConfig::default_port(), 8123);
+        assert_eq!(
+            ClickHouseSinkConfig::default_endpoint(),
+            "http://localhost:8123"
+        );
         assert_eq!(ClickHouseSinkConfig::default_timeout_secs(), 30);
         assert_eq!(ClickHouseSinkConfig::default_max_retries(), 3);
     }
@@ -150,8 +143,7 @@ mod tests {
     #[test]
     fn test_password_not_trimmed() {
         let config = ClickHouseSinkConfig::new(
-            "localhost".to_string(),
-            None,
+            "http://localhost:8123".to_string(),
             "test_db".to_string(),
             "test_table".to_string(),
             "user".to_string(),

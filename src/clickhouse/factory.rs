@@ -17,16 +17,20 @@ impl SinkFactory for ClickHouseSinkFactory {
 
     fn validate_spec(&self, spec: &SinkSpec) -> SinkResult<()> {
         // 验证必填参数非空
-        ensure_not_empty(spec, "host")?;
+        ensure_not_empty(spec, "endpoint")?;
         ensure_not_empty(spec, "database")?;
         ensure_not_empty(spec, "table")?;
         ensure_not_empty(spec, "username")?;
 
-        // 验证 port（如果提供）
-        if let Some(port) = get_u64(spec, "port")
-            && (port == 0 || port > 65535)
-        {
-            return Err(SinkReason::sink("clickhouse.port must be between 1 and 65535").into());
+        // 验证 endpoint 格式（简单检查是否包含 http:// 或 https://）
+        if let Some(endpoint) = spec.params.get("endpoint").and_then(Value::as_str) {
+            let endpoint = endpoint.trim();
+            if !endpoint.starts_with("http://") && !endpoint.starts_with("https://") {
+                return Err(SinkReason::sink(
+                    "clickhouse.endpoint must start with http:// or https://",
+                )
+                .into());
+            }
         }
 
         // 验证 timeout_secs
@@ -47,8 +51,7 @@ impl SinkFactory for ClickHouseSinkFactory {
     }
 
     async fn build(&self, spec: &SinkSpec, _ctx: &SinkBuildCtx) -> SinkResult<SinkHandle> {
-        let host = required_param(spec, "host")?;
-        let port = get_u64(spec, "port").map(|p| p as u16);
+        let endpoint = required_param(spec, "endpoint")?;
         let database = required_param(spec, "database")?;
         let table = required_param(spec, "table")?;
         let username = required_param(spec, "username")?;
@@ -57,8 +60,7 @@ impl SinkFactory for ClickHouseSinkFactory {
         let max_retries = get_i64(spec, "max_retries").map(|r| r as i32);
 
         let cfg = ClickHouseSinkConfig::new(
-            host,
-            port,
+            endpoint,
             database,
             table,
             username,
@@ -84,8 +86,7 @@ impl SinkDefProvider for ClickHouseSinkFactory {
             kind: self.kind().to_string(),
             scope: ConnectorScope::Sink,
             allow_override: vec![
-                "host",
-                "port",
+                "endpoint",
                 "database",
                 "table",
                 "username",
@@ -149,8 +150,10 @@ fn get_i64(spec: &SinkSpec, key: &str) -> Option<i64> {
 /// 生成 ClickHouse Sink 的默认参数
 fn clickhouse_defaults() -> ParamMap {
     let mut params = ParamMap::new();
-    params.insert("host".into(), json!("localhost"));
-    params.insert("port".into(), json!(ClickHouseSinkConfig::default_port()));
+    params.insert(
+        "endpoint".into(),
+        json!(ClickHouseSinkConfig::default_endpoint()),
+    );
     params.insert("database".into(), json!("default"));
     params.insert("table".into(), json!("wp_logs"));
     params.insert("username".into(), json!("default"));
@@ -173,7 +176,10 @@ mod tests {
 
     fn base_spec() -> SinkSpec {
         let mut params = BTreeMap::new();
-        params.insert("host".into(), Value::String("localhost".into()));
+        params.insert(
+            "endpoint".into(),
+            Value::String("http://localhost:8123".into()),
+        );
         params.insert("database".into(), Value::String("test_db".into()));
         params.insert("table".into(), Value::String("test_table".into()));
         params.insert("username".into(), Value::String("default".into()));
@@ -194,19 +200,51 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_empty_host() {
+    fn validate_rejects_empty_endpoint() {
         let mut spec = base_spec();
-        spec.params.insert("host".into(), Value::String("".into()));
+        spec.params
+            .insert("endpoint".into(), Value::String("".into()));
         let factory = ClickHouseSinkFactory;
         assert!(factory.validate_spec(&spec).is_err());
     }
 
     #[test]
-    fn validate_rejects_missing_host() {
+    fn validate_rejects_missing_endpoint() {
         let mut spec = base_spec();
-        spec.params.remove("host");
+        spec.params.remove("endpoint");
         let factory = ClickHouseSinkFactory;
         assert!(factory.validate_spec(&spec).is_err());
+    }
+
+    #[test]
+    fn validate_rejects_invalid_endpoint_without_protocol() {
+        let mut spec = base_spec();
+        spec.params
+            .insert("endpoint".into(), Value::String("localhost:8123".into()));
+        let factory = ClickHouseSinkFactory;
+        assert!(factory.validate_spec(&spec).is_err());
+    }
+
+    #[test]
+    fn validate_accepts_http_endpoint() {
+        let mut spec = base_spec();
+        spec.params.insert(
+            "endpoint".into(),
+            Value::String("http://localhost:8123".into()),
+        );
+        let factory = ClickHouseSinkFactory;
+        assert!(factory.validate_spec(&spec).is_ok());
+    }
+
+    #[test]
+    fn validate_accepts_https_endpoint() {
+        let mut spec = base_spec();
+        spec.params.insert(
+            "endpoint".into(),
+            Value::String("https://ch.example.com:9440".into()),
+        );
+        let factory = ClickHouseSinkFactory;
+        assert!(factory.validate_spec(&spec).is_ok());
     }
 
     #[test]
@@ -257,32 +295,6 @@ mod tests {
         spec.params.remove("username");
         let factory = ClickHouseSinkFactory;
         assert!(factory.validate_spec(&spec).is_err());
-    }
-
-    #[test]
-    fn validate_rejects_zero_port() {
-        let mut spec = base_spec();
-        spec.params.insert("port".into(), Value::Number(0.into()));
-        let factory = ClickHouseSinkFactory;
-        assert!(factory.validate_spec(&spec).is_err());
-    }
-
-    #[test]
-    fn validate_rejects_port_too_large() {
-        let mut spec = base_spec();
-        spec.params
-            .insert("port".into(), Value::Number(65536.into()));
-        let factory = ClickHouseSinkFactory;
-        assert!(factory.validate_spec(&spec).is_err());
-    }
-
-    #[test]
-    fn validate_accepts_valid_port() {
-        let mut spec = base_spec();
-        spec.params
-            .insert("port".into(), Value::Number(8123.into()));
-        let factory = ClickHouseSinkFactory;
-        assert!(factory.validate_spec(&spec).is_ok());
     }
 
     #[test]
@@ -376,8 +388,7 @@ mod tests {
 
         // 验证 allow_override 包含所有参数
         let expected_params = vec![
-            "host",
-            "port",
+            "endpoint",
             "database",
             "table",
             "username",
@@ -394,8 +405,7 @@ mod tests {
         }
 
         // 验证 default_params 包含所有默认值
-        assert!(def.default_params.contains_key("host"));
-        assert!(def.default_params.contains_key("port"));
+        assert!(def.default_params.contains_key("endpoint"));
         assert!(def.default_params.contains_key("database"));
         assert!(def.default_params.contains_key("table"));
         assert!(def.default_params.contains_key("username"));
@@ -409,10 +419,9 @@ mod tests {
         let params = clickhouse_defaults();
 
         assert_eq!(
-            params.get("host").and_then(Value::as_str),
-            Some("localhost")
+            params.get("endpoint").and_then(Value::as_str),
+            Some("http://localhost:8123")
         );
-        assert_eq!(params.get("port").and_then(Value::as_u64), Some(8123));
         assert_eq!(
             params.get("database").and_then(Value::as_str),
             Some("default")
