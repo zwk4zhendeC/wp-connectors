@@ -205,12 +205,12 @@ impl AsyncRecordSink for ClickHouseSink {
         if data.is_empty() {
             return Ok(());
         }
-
         // 开始统计
         self.time_stats.start_stat(data.len() as u64);
 
         // 转换为 NDJSON
         let ndjson = self.records_to_ndjson(&data)?;
+        println!("{:#?}", ndjson);
         let row_count = data.len();
 
         // 执行批量插入

@@ -76,6 +76,9 @@ SKIP_KAFKA_INTEGRATION_TESTS=1 cargo test
 # Default
 cargo build
 
+# Enable HTTP sink
+cargo build --features http
+
 # Enable Prometheus
 cargo build --features prometheus
 
@@ -256,6 +259,9 @@ SKIP_KAFKA_INTEGRATION_TESTS=1 cargo test
 ```bash
 # 默认
 cargo build
+
+# 启用 HTTP sink
+cargo build --features http
 
 # 启用 Prometheus
 cargo build --features prometheus

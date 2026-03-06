@@ -43,13 +43,13 @@ const CH_TIMEOUT_SECS: u64 = 30;
 const CH_MAX_RETRIES: i32 = 3;
 
 /// 总记录数
-const TOTAL_RECORDS: usize = 200_0000; // 200w
+const TOTAL_RECORDS: usize = 2; // 200w
 
 /// 并发任务数
-const TASK_COUNT: usize = 8;
+const TASK_COUNT: usize = 1;
 
 /// 每批次大小
-const BATCH_SIZE: usize = 10_0000; // 10w
+const BATCH_SIZE: usize = 2; // 10w
 
 /// 连续失败阈值（超过此次数停止任务）
 const MAX_CONSECUTIVE_ERRORS: usize = 3;

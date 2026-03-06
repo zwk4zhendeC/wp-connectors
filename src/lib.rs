@@ -43,3 +43,7 @@ pub mod victoriametrics;
 // ClickHouse：可选功能，启用方式 `--features clickhouse`
 #[cfg(feature = "clickhouse")]
 pub mod clickhouse;
+
+// HTTP：可选功能，启用方式 `--features http`
+#[cfg(feature = "http")]
+pub mod http;
