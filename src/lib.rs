@@ -32,10 +32,6 @@ pub mod victorialogs;
 #[cfg(feature = "elasticsearch")]
 pub mod elasticsearch;
 
-// HTTP Sink：可选功能，启用方式 `--features http`
-#[cfg(feature = "http")]
-pub mod http;
-
 // VictoriaMetrics：可选功能，启用方式 `--features victoriametric`
 #[cfg(feature = "victoriametrics")]
 pub mod victoriametrics;

@@ -138,7 +138,8 @@ impl ClickHouseSink {
             // 使用同步插入设置，确保立即返回错误
             // async_insert=0: 禁用异步插入
             // wait_for_async_insert=0: 不等待异步插入（因为已禁用）
-            match self.client
+            match self
+                .client
                 .query(&query)
                 .with_option("async_insert", "0")
                 .with_option("wait_for_async_insert", "0")
@@ -164,7 +165,8 @@ impl ClickHouseSink {
                         || error_msg.contains("Code: 10") // Cannot parse input
                         || error_msg.contains("Code: 53") // Type mismatch
                         || error_msg.contains("Code: 117") // Unknown type
-                        || error_msg.contains("Code: 27") // Cannot parse
+                        || error_msg.contains("Code: 27")
+                    // Cannot parse
                     {
                         return Err(sink_error(format!("schema/data error: {}", error_msg)));
                     }

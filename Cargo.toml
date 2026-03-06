@@ -93,7 +93,6 @@ victoriametrics = [
 ]
 doris = ["dep:reqwest"]
 elasticsearch = ["dep:reqwest"]
-# http = ["dep:reqwest"]
 clickhouse = ["dep:reqwest", "dep:clickhouse"]
 full = ["kafka", "mysql", "prometheus", "elasticsearch", "clickhouse", "victoriametrics", "victorialogs", "doris"]
 
