@@ -14,6 +14,7 @@ A unified connector library for the wp-flow system, providing Source and Sink su
 | Kafka | ✅ | ✅ | `kafka` (default) |
 | MySQL | ✅ | ✅ | `mysql` (default) |
 | Doris | - | ✅ | `doris` (default) |
+| HTTP | - | ✅ | `http` |
 | Elasticsearch | - | ✅ | `elasticsearch` (placeholder) |
 | ClickHouse | - | ✅ | `clickhouse` (placeholder) |
 | Prometheus | - | Exporter | `prometheus` (default) |
@@ -58,6 +59,7 @@ cargo clippy --all-targets -- -D warnings
 | `kafka` | Kafka Source/Sink | ✅ |
 | `mysql` | MySQL Source/Sink | ✅ |
 | `doris` | Doris Sink (HTTP Stream Load) | ✅ |
+| `http` | HTTP/HTTPS Sink | - |
 | `prometheus` | Prometheus Exporter (actix-web) | ✅ |
 | `victoriametrics` | VictoriaMetrics Exporter | ✅ |
 | `victorialogs` | VictoriaLogs Sink | ✅ |
@@ -95,6 +97,27 @@ use wp_connectors::kafka::register_factories;
 register_factories();
 ```
 
+### HTTP Sink Example
+
+To use the HTTP sink, enable the `http` feature:
+
+```bash
+cargo build --features http
+cargo test --features http
+```
+
+Register and use the HTTP sink:
+
+```rust
+#[cfg(feature = "http")]
+use wp_connectors::http::register_factory;
+
+#[cfg(feature = "http")]
+register_factory();
+```
+
+See `examples/http_sink_example.rs` and `.other/connectors/sink.d/95-http.toml` for complete configuration examples.
+
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development workflow and contribution guidelines.
@@ -116,6 +139,7 @@ wp-flow 系统的统一连接器库，提供多种数据源（Source）和数据
 | Kafka | ✅ | ✅ | `kafka`（默认） |
 | MySQL | ✅ | ✅ | `mysql`（默认） |
 | Doris | - | ✅ | `doris`（默认） |
+| HTTP | - | ✅ | `http` |
 | Elasticsearch | - | ✅ | `elasticsearch`（占位） |
 | ClickHouse | - | ✅ | `clickhouse`（占位） |
 | Prometheus | - | 导出器 | `prometheus`（默认） |
@@ -160,6 +184,7 @@ cargo clippy --all-targets -- -D warnings
 | `kafka` | Kafka Source/Sink | ✅ |
 | `mysql` | MySQL Source/Sink | ✅ |
 | `doris` | Doris Sink（HTTP Stream Load） | ✅ |
+| `http` | HTTP/HTTPS Sink | - |
 | `prometheus` | Prometheus 导出器（actix-web） | ✅ |
 | `victoriametrics` | VictoriaMetrics 导出器 | ✅ |
 | `victorialogs` | VictoriaLogs Sink | ✅ |
@@ -196,6 +221,27 @@ use wp_connectors::kafka::register_factories;
 // 注册 Kafka 连接器工厂
 register_factories();
 ```
+
+### HTTP Sink 示例
+
+要使用 HTTP sink，需启用 `http` 特性：
+
+```bash
+cargo build --features http
+cargo test --features http
+```
+
+注册并使用 HTTP sink：
+
+```rust
+#[cfg(feature = "http")]
+use wp_connectors::http::register_factory;
+
+#[cfg(feature = "http")]
+register_factory();
+```
+
+完整配置示例请参见 `examples/http_sink_example.rs` 和 `.other/connectors/sink.d/95-http.toml`。
 
 ## 贡献
 

@@ -55,6 +55,8 @@ lazy_static = "1.5"
 uuid = { version = "1.19", features = ["v4"] }
 rand = "0.8"
 urlencoding = "2.1"
+flate2 = "1.0"
+base64 = "0.22"
 
 # Dev Dependencies
 env_logger = "0.11"
@@ -72,7 +74,7 @@ homepage = "https://github.com/wp-labs/wp-connectors"
 [features]
 # 默认只编译 Kafka 相关代码；需要 Prometheus 导出器时启用 `prometheus` 特性
 #default = ["kafka"]
-default = ["kafka", "mysql","prometheus","victoriametrics", "victorialogs","doris","count","clickhouse","elasticsearch"]
+default = ["kafka", "mysql","prometheus","victoriametrics", "victorialogs","doris","count","clickhouse","elasticsearch","http"]
 kafka = [ "dep:rdkafka-wrap"]
 mysql = []
 count = []
@@ -94,7 +96,8 @@ victoriametrics = [
 doris = ["dep:reqwest"]
 elasticsearch = ["dep:reqwest"]
 clickhouse = ["dep:reqwest", "dep:clickhouse"]
-full = ["kafka", "mysql", "prometheus", "elasticsearch", "clickhouse", "victoriametrics", "victorialogs", "doris"]
+http = ["dep:reqwest", "dep:flate2", "dep:base64"]
+full = ["kafka", "mysql", "prometheus", "elasticsearch", "clickhouse", "victoriametrics", "victorialogs", "doris", "http"]
 
 [dependencies]
 # WP Dependencies - using workspace versions
@@ -138,6 +141,8 @@ lazy_static = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 rand = { workspace = true }
 urlencoding = { workspace = true }
+flate2 = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
 
 [dev-dependencies]
 env_logger = { workspace = true }
@@ -146,3 +151,14 @@ httpmock = "0.8"
 quickcheck = "1.0"
 quickcheck_macros = "1.0"
 # criterion = { version = "0.5", features = ["async_tokio"] }
+
+# Examples in subdirectories
+[[example]]
+name = "http_sink_example"
+path = "examples/http/http_sink_example.rs"
+required-features = ["http"]
+
+[[example]]
+name = "http_sink_concurrent_test"
+path = "examples/http/http_sink_concurrent_test.rs"
+required-features = ["http"]
