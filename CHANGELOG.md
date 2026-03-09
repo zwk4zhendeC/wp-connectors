@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-03-09
+
+### Added
+- Add HTTP sink connector with configurable `endpoint`, `method`, `headers`, basic auth, batching, retries, and optional gzip compression
+- Add HTTP sink examples and a local test server under `examples/http/`
+
+### Changed
+- Enable the `http` connector in the default feature set
+- Change ClickHouse sink configuration from `host` to `endpoint` and support explicit HTTP(S) endpoints
+
+### Fixed
+- Refine HTTP sink JSON payload handling and related examples
+
 ## [0.9.0] - 2026-03-05
 
 ### Changed
@@ -91,7 +104,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial 0.7.x series release.
 
-[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/wp-labs/wp-connectors/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/wp-labs/wp-connectors/compare/v0.7.8...v0.9.0
 [0.8.0]: https://github.com/wp-labs/wp-connectors/compare/v0.7.8...v0.8.0
 [0.7.8]: https://github.com/wp-labs/wp-connectors/compare/v0.7.7...v0.7.8
 [0.7.7]: https://github.com/wp-labs/wp-connectors/compare/v0.7.6...v0.7.7
