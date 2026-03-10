@@ -79,6 +79,7 @@ kafka = [ "dep:rdkafka-wrap"]
 mysql = []
 postgres = []
 count = []
+postgres = []
 victorialogs = []
 prometheus = [
     "dep:actix-web",
