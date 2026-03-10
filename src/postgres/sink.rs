@@ -227,7 +227,7 @@ mod tests {
     fn postgres_sink_base_insert_prefix() {
         let sink = make_sink("users", vec!["name", "age"]);
         let sql = sink.base_insert_prefix();
-        assert_eq!(sql, "INSERT IGNORE INTO users (`name`, `age`) VALUES ");
+        assert_eq!(sql, "INSERT INTO users (\"name\", \"age\") VALUES ");
     }
 
     #[test]
