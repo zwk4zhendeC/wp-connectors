@@ -12,7 +12,7 @@ mod main    {
   }
   flow up_feat |  ver.feature {
   }
-  flow ver.use | @release_stable  | _dist {
+  flow ver.use | @release | _dist {
         MTU_CNN = "";
         VERSION_MTU = "v${VERSION}" ;
   }
@@ -23,14 +23,6 @@ mod main    {
   flow _read_beta_mtu {
         gx.read_stdin ( name : "MTU", prompt : "pls input maturity, ex : beta.1" );
         gx.echo ( "${VERSION}-${MTU}" );
-  }
-  flow ver.use | _read_alpha_mtu | @release_alpha | _dist {
-        MTU_CNN = "-alpha";
-        VERSION_MTU = "v${VERSION}-${MTU}" ;
-  }
-  flow ver.use | _read_beta_mtu | @release_beta | _dist {
-        MTU_CNN = "-beta";
-        VERSION_MTU = "v${VERSION}-${MTU}" ;
   }
 
   flow _dist {
