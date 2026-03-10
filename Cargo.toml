@@ -41,7 +41,7 @@ tokio = { version = "1.48", features = ["full"] }
 bytes = "1.11.0"
 winnow = "0.7"
 educe = { version = "0.6", default-features = false, features = ["Debug", "Default"] }
-sea-orm = { version = "1.1", default-features = false, features = ["sqlx-mysql", "runtime-tokio-rustls"] }
+sea-orm = { version = "1.1", default-features = false, features = ["sqlx-mysql", "sqlx-postgres", "runtime-tokio-rustls"] }
 sqlx = { version = "0.8", default-features = false, features = ["mysql", "runtime-tokio", "tls-native-tls"]  }
 
 
@@ -69,9 +69,10 @@ homepage = "https://github.com/wp-labs/wp-connectors"
 [features]
 # 默认只编译 Kafka 相关代码；需要 Prometheus 导出器时启用 `prometheus` 特性
 #default = ["kafka"]
-default = ["kafka", "mysql","prometheus","victoriametrics", "victorialogs","doris"]
+default = ["kafka", "mysql", "postgres", "prometheus","victoriametrics", "victorialogs","doris"]
 kafka = [ "dep:rdkafka-wrap"]
 mysql = []
+postgres = []
 victorialogs = []
 prometheus = [
     "dep:actix-web",
@@ -90,7 +91,7 @@ victoriametrics = [
 doris = ["dep:reqwest"]
 elasticsearch = []
 clickhouse= []
-full = ["kafka", "mysql", "prometheus", "elasticsearch", "clickhouse", "victoriametrics", "victorialogs", "doris"]
+full = ["kafka", "mysql", "postgres", "prometheus", "elasticsearch", "clickhouse", "victoriametrics", "victorialogs", "doris"]
 
 [dependencies]
 # WP Dependencies - using workspace versions
