@@ -12,6 +12,10 @@ pub mod kafka;
 #[cfg(feature = "mysql")]
 pub mod mysql;
 
+// Postgres：默认启用（feature = "postgres" 是默认特性）
+#[cfg(feature = "postgres")]
+pub mod postgres;
+
 // Prometheus：可选功能，启用方式 `--features prometheus`
 #[cfg(feature = "prometheus")]
 pub mod prometheus;
