@@ -157,7 +157,7 @@ impl SinkFactory for MySQLSinkFactory {
             };
         let url = conf.get_database_url();
         let mut opt = ConnectOptions::new(url.clone());
-        opt.max_connections(10)
+        opt.max_connections(50)
             .min_connections(1)
             .connect_timeout(Duration::from_secs(8))
             .acquire_timeout(Duration::from_secs(8))
@@ -170,7 +170,7 @@ impl SinkFactory for MySQLSinkFactory {
             SinkError::from(SinkReason::sink(format!("connect mysql fail: {err}")))
         })?;
         let table = conf.table.clone().unwrap_or_else(|| spec.name.clone());
-        let sink = MysqlSink::new(db, table, columns, conf.batch);
+        let sink = MysqlSink::new(db, table, columns);
         Ok(SinkHandle::new(Box::new(sink)))
     }
 }

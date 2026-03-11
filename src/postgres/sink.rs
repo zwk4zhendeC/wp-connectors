@@ -1,8 +1,7 @@
 use async_trait::async_trait;
-use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
+use sea_orm::{ConnectionTrait, DatabaseConnection};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::runtime::Builder;
 use wp_connector_api::{
     AsyncCtrl, AsyncRawDataSink, AsyncRecordSink, SinkError, SinkReason, SinkResult,
 };
@@ -13,21 +12,14 @@ pub struct PostgresSink {
     pub db: DatabaseConnection,
     pub table: String,
     pub cloumn_name: Vec<String>,
-    pub values: Vec<String>,
 }
 
 impl PostgresSink {
-    pub fn new(
-        db: DatabaseConnection,
-        table: String,
-        cloumn_name: Vec<String>,
-        batch: Option<usize>,
-    ) -> Self {
+    pub fn new(db: DatabaseConnection, table: String, cloumn_name: Vec<String>) -> Self {
         Self {
             db,
             table,
             cloumn_name,
-            values: Vec::with_capacity(batch.unwrap_or(1024)),
         }
     }
 
@@ -64,73 +56,12 @@ impl PostgresSink {
             .collect();
         format!("({})", values.join(", "))
     }
-
-    /// 推送缓存区的数据
-    async fn flush_pending_sqls(
-        &self,
-        pending_sqls: Vec<String>,
-        backend: DatabaseBackend,
-    ) -> SinkResult<()> {
-        if pending_sqls.is_empty() {
-            return Ok(());
-        }
-        let existing = self.db.clone();
-        tokio::task::spawn_blocking(move || -> SinkResult<()> {
-            let runtime = Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|e| {
-                    SinkError::from(SinkReason::Sink(format!(
-                        "build runtime for postgres flush fail: {}",
-                        e
-                    )))
-                })?;
-
-            runtime.block_on(async move {
-                let conn = existing.clone();
-
-                for sql in pending_sqls {
-                    let state = Statement::from_string(backend, sql.clone());
-                    match conn.execute(state).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            return Err(SinkError::from(SinkReason::Sink(format!(
-                                "postgres execute fail: {}, excute sql: {}",
-                                e, sql
-                            ))));
-                        }
-                    }
-                }
-                Ok(())
-            })
-        })
-        .await
-        .map_err(|e| {
-            SinkError::from(SinkReason::Sink(format!(
-                "postgres flush join error: {}",
-                e
-            )))
-        })?
-    }
 }
 
 #[async_trait]
 impl AsyncCtrl for PostgresSink {
     async fn stop(&mut self) -> SinkResult<()> {
-        // 将待写入的数据提前组装为 SQL 字符串，避免对 self.values 的借用贯穿异步等待
-        let backend = self.db.get_database_backend();
-        let mut pending_sqls: Vec<String> = Vec::new();
-        if !self.values.is_empty() {
-            // 单条 INSERT + 多个 VALUES（不加分号，兼容性更好）
-            let mut sql = self.base_insert_prefix();
-            sql.push_str(&self.values.join(","));
-            pending_sqls.push(sql);
-        }
-        // 清空缓存，避免重复写
-        if pending_sqls.is_empty() {
-            return Ok(());
-        }
-        self.flush_pending_sqls(pending_sqls, backend).await
+        Ok(())
     }
     async fn reconnect(&mut self) -> SinkResult<()> {
         self.db.ping().await.map_err(|e| {
@@ -143,22 +74,7 @@ impl AsyncCtrl for PostgresSink {
 #[async_trait]
 impl AsyncRecordSink for PostgresSink {
     async fn sink_record(&mut self, data: &DataRecord) -> SinkResult<()> {
-        let raw = self.format_values_tuple(data);
-        self.values.push(raw);
-
-        if !self.values.is_empty() {
-            // 单条 INSERT + 多个 VALUES（不加分号，兼容性更好）
-            let mut sql = self.base_insert_prefix();
-            sql.push_str(&self.values.join(","));
-            if let Err(e) = self.db.execute_unprepared(sql.as_str()).await {
-                return Err(SinkError::from(SinkReason::Sink(format!(
-                    "postgres exec cloumns:{:?}, fail: {}, sql: {}",
-                    self.cloumn_name, e, sql
-                ))));
-            }
-        }
-        self.values.clear();
-        Ok(())
+        self.sink_records(vec![Arc::new(data.clone())]).await
     }
 
     async fn sink_records(&mut self, data: Vec<Arc<DataRecord>>) -> SinkResult<()> {
@@ -166,11 +82,10 @@ impl AsyncRecordSink for PostgresSink {
         for record in data {
             raws.push(self.format_values_tuple(record.as_ref()));
         }
-        self.values.extend(raws);
-        if !self.values.is_empty() {
+        if !raws.is_empty() {
             // 单条 INSERT + 多个 VALUES
             let mut sql = self.base_insert_prefix();
-            sql.push_str(&self.values.join(","));
+            sql.push_str(&raws.join(","));
             if let Err(e) = self.db.execute_unprepared(sql.as_str()).await {
                 return Err(SinkError::from(SinkReason::Sink(format!(
                     "postgres exec cloumns:{:?}, fail: {}, sql: {}",
@@ -178,7 +93,6 @@ impl AsyncRecordSink for PostgresSink {
                 ))));
             }
         }
-        self.values.clear();
         Ok(())
     }
 }
@@ -219,7 +133,6 @@ mod tests {
             DatabaseConnection::default(),
             table.to_string(),
             columns.into_iter().map(|s| s.to_string()).collect(),
-            Some(8),
         )
     }
 
