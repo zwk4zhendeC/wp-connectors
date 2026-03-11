@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-03-11
+
+### Changed
+- Rework Doris NDJSON serialization to preserve `wp_model_core::Value` types, stream records directly into a single payload buffer, and reuse request bodies across retries
+
+### Fixed
+- Harden Doris Stream Load handling for `Publish Timeout`, `Label Already Exists`, filtered-row partial success, and non-retryable `Fail` responses
+- Generate deterministic Doris load labels from batch payloads so caller-level retries can preserve Stream Load idempotency
+- Make Doris sink shutdown terminal and validate retry configuration values more strictly
+- Add Doris unit and `httpmock` coverage for retry, conflict, and partial-failure paths
+
 ## [0.9.2] - 2026-03-10
 
 ### Added
@@ -116,7 +127,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial 0.7.x series release.
 
-[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.9.4...HEAD
+[0.9.4]: https://github.com/wp-labs/wp-connectors/compare/v0.9.2...v0.9.4
 [0.9.2]: https://github.com/wp-labs/wp-connectors/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/wp-labs/wp-connectors/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/wp-labs/wp-connectors/compare/v0.7.8...v0.9.0

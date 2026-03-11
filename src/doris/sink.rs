@@ -19,9 +19,9 @@ use crate::utils::time_stat_utils::TimeStatUtils;
 use async_trait::async_trait;
 use bytes::Bytes;
 use reqwest::{Client, StatusCode};
+use serde::Deserialize;
 use serde::Serialize;
 use serde::ser::{SerializeMap, SerializeSeq};
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -260,13 +260,21 @@ impl DorisSink {
         match serde_json::from_str::<StreamLoadResponse>(body) {
             Ok(resp) => Self::classify_stream_load_response(http_status, &resp),
             Err(err) if http_status.is_success() => {
-                log::warn!("failed to parse stream load response: {}, body: {}", err, body);
+                log::warn!(
+                    "failed to parse stream load response: {}, body: {}",
+                    err,
+                    body
+                );
                 LoadOutcome::Error(format!("invalid response format: {}", err))
             }
-            Err(_) if http_status.is_client_error() => {
-                LoadOutcome::Error(format!("client error: status={}, body={}", http_status, body))
-            }
-            Err(_) => LoadOutcome::Retry(format!("server error: status={}, body={}", http_status, body)),
+            Err(_) if http_status.is_client_error() => LoadOutcome::Error(format!(
+                "client error: status={}, body={}",
+                http_status, body
+            )),
+            Err(_) => LoadOutcome::Retry(format!(
+                "server error: status={}, body={}",
+                http_status, body
+            )),
         }
     }
 
@@ -301,8 +309,7 @@ impl DorisSink {
                     existing_status
                 )),
                 None => LoadOutcome::Error(
-                    "stream load label already exists but ExistingJobStatus is missing"
-                        .to_string(),
+                    "stream load label already exists but ExistingJobStatus is missing".to_string(),
                 ),
             },
             "Fail" => LoadOutcome::Error(format!(
@@ -484,7 +491,10 @@ impl Serialize for JsonFieldValue<'_> {
                     if *field.as_field().get_meta() == DataType::Ignore {
                         continue;
                     }
-                    map.serialize_entry(key.as_str(), &JsonFieldValue(field.as_field().get_value()))?;
+                    map.serialize_entry(
+                        key.as_str(),
+                        &JsonFieldValue(field.as_field().get_value()),
+                    )?;
                 }
                 map.end()
             }
@@ -657,7 +667,11 @@ mod tests {
         nested.insert("count", DataField::from_digit("count", 7));
         nested.insert(
             "ignored",
-            DataField::new(DataType::Ignore, "ignored", Value::Ignore(Default::default())),
+            DataField::new(
+                DataType::Ignore,
+                "ignored",
+                Value::Ignore(Default::default()),
+            ),
         );
         record.append(DataField::new(DataType::Obj, "meta", Value::Obj(nested)));
 
@@ -752,7 +766,10 @@ mod tests {
             })
             .await;
 
-        let err = sink.sink_records(vec![Arc::new(sample_record())]).await.unwrap_err();
+        let err = sink
+            .sink_records(vec![Arc::new(sample_record())])
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("type mismatch"));
         fail_mock.assert_calls_async(1).await;
     }
@@ -775,7 +792,10 @@ mod tests {
             })
             .await;
 
-        let err = sink.sink_records(vec![Arc::new(sample_record())]).await.unwrap_err();
+        let err = sink
+            .sink_records(vec![Arc::new(sample_record())])
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("partially failed"));
         filtered_mock.assert_calls_async(1).await;
     }
