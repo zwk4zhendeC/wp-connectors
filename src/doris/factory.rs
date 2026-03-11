@@ -36,6 +36,18 @@ impl SinkFactory for DorisSinkFactory {
             return Err(SinkReason::sink("doris.timeout_secs must be > 0").into());
         }
 
+        if let Some(max_retries) = get_i64(spec, "max_retries")
+            && max_retries < -1
+        {
+            return Err(SinkReason::sink("doris.max_retries must be >= -1").into());
+        }
+
+        if let Some(retries) = get_i64(spec, "retries")
+            && retries < -1
+        {
+            return Err(SinkReason::sink("doris.retries must be >= -1").into());
+        }
+
         Ok(())
     }
 
@@ -132,6 +144,10 @@ fn optional_string(spec: &SinkSpec, key: &str) -> Option<String> {
 /// 将参数解析为 `u64`。
 fn get_u64(spec: &SinkSpec, key: &str) -> Option<u64> {
     spec.params.get(key).and_then(Value::as_u64)
+}
+
+fn get_i64(spec: &SinkSpec, key: &str) -> Option<i64> {
+    spec.params.get(key).and_then(Value::as_i64)
 }
 
 /// 从多个键中挑选第一个存在的 u64。
@@ -247,5 +263,13 @@ mod tests {
         let spec = base_spec();
         let factory = DorisSinkFactory;
         assert!(factory.validate_spec(&spec).is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_invalid_negative_retry_count() {
+        let mut spec = base_spec();
+        spec.params.insert("max_retries".into(), Value::from(-2));
+        let factory = DorisSinkFactory;
+        assert!(factory.validate_spec(&spec).is_err());
     }
 }

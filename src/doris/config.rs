@@ -19,7 +19,7 @@ pub struct DorisSinkConfig {
     pub password: String,
     /// Request timeout in seconds
     pub timeout_secs: u64,
-    /// Maximum retry attempts (-1 for unlimited)
+    /// Maximum retry attempts after the initial request (-1 for unlimited)
     pub max_retries: i32,
     /// Optional custom headers for Stream Load parameters
     #[serde(skip_serializing_if = "Option::is_none")]
