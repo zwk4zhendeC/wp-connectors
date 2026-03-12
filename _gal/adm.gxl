@@ -26,7 +26,7 @@ mod main    {
   }
 
   flow _dist {
-    gx.cmd (  "git commit -a -m  'ci ${VERSION_MTU}'"  );
+    gx.cmd (  "git commit -a -m  'ci ${VERSION_MTU}'" , suc: "[0,1]" );
     gx.cmd (  "git push "  );
     gx.cmd (  "git tag ${VERSION_MTU}"  );
     gx.cmd (  "git push --tags "  );
