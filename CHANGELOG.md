@@ -7,55 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.9.4] - 2026-03-11
-
-### Changed
-- Rework Doris NDJSON serialization to preserve `wp_model_core::Value` types, stream records directly into a single payload buffer, and reuse request bodies across retries
-
-### Fixed
-- Harden Doris Stream Load handling for `Publish Timeout`, `Label Already Exists`, filtered-row partial success, and non-retryable `Fail` responses
-- Generate deterministic Doris load labels from batch payloads so caller-level retries can preserve Stream Load idempotency
-- Make Doris sink shutdown terminal and validate retry configuration values more strictly
-- Add Doris unit and `httpmock` coverage for retry, conflict, and partial-failure paths
-
-## [0.9.2] - 2026-03-10
-
-### Added
-- Add Postgres sink support with dedicated `postgres` connector module, factory, config parser, and sink implementation
-
-### Changed
-- Enable the `postgres` connector in the default and `full` feature sets
-- Add Postgres connection support in shared database dependencies (`sqlx-postgres` via SeaORM)
-
-### Fixed
-- Correct a Postgres sink test case
-
-## [0.9.1] - 2026-03-09
+## [0.10.0] - 2026-03-12
 
 ### Added
 - Add HTTP sink connector with configurable `endpoint`, `method`, `headers`, basic auth, batching, retries, and optional gzip compression
 - Add HTTP sink examples and a local test server under `examples/http/`
-
-### Changed
-- Enable the `http` connector in the default feature set
-- Change ClickHouse sink configuration from `host` to `endpoint` and support explicit HTTP(S) endpoints
-
-### Fixed
-- Refine HTTP sink JSON payload handling and related examples
-
-## [0.9.0] - 2026-03-05
+- Add Postgres sink support with dedicated `postgres` connector module, factory, config parser, and sink implementation
 
 ### Changed
 - Upgrade core WP dependencies to 0.8 series (`wp-connector-api`, `wp-parse-api`, `wp-error`, `wp-specs`, `wp-conf-base`, `wp-log`)
 - Upgrade Orion dependencies (`orion-error` to 0.6, `orion_conf` to 0.5)
-- Bump project version to `0.9.0`
-- Clarify Elasticsearch connector support in 0.9 (`elasticsearch` feature, included in default features)
+- Bump project version to `0.10.0`
+- Clarify Elasticsearch connector support in 0.10 (`elasticsearch` feature, included in default features)
 - Adopt version channel policy: odd `minor` for integration, even `minor` for stable, `patch` for fixes only
+- Enable the `http` connector in the default feature set
+- Change ClickHouse sink configuration from `host` to `endpoint` and support explicit HTTP(S) endpoints
+- Enable the `postgres` connector in the default and `full` feature sets
+- Add Postgres connection support in shared database dependencies (`sqlx-postgres` via SeaORM)
 
 ### Fixed
 - Fix Kafka/MySQL build breaks after dependency upgrades
 - Align `RawData` import with new public path (`wp_model_core::raw::RawData`)
 - Align error handling with `orion-error` 0.6 (`ErrorOweBase`, `from_validation()`, `UvsReason::data_error()`)
+- Refine HTTP sink JSON payload handling and related examples
+- Correct a Postgres sink test case
+- Harden Doris Stream Load handling for `Publish Timeout`, `Label Already Exists`, filtered-row partial success, and non-retryable `Fail` responses
+- Generate deterministic Doris load labels from batch payloads so caller-level retries can preserve Stream Load idempotency
+- Make Doris sink shutdown terminal and validate retry configuration values more strictly
+- Add Doris unit and `httpmock` coverage for retry, conflict, and partial-failure paths
 
 ## [0.7.8] - 2026-02-27
 
@@ -127,11 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial 0.7.x series release.
 
-[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.9.4...HEAD
-[0.9.4]: https://github.com/wp-labs/wp-connectors/compare/v0.9.2...v0.9.4
-[0.9.2]: https://github.com/wp-labs/wp-connectors/compare/v0.9.1...v0.9.2
-[0.9.1]: https://github.com/wp-labs/wp-connectors/compare/v0.9.0...v0.9.1
-[0.9.0]: https://github.com/wp-labs/wp-connectors/compare/v0.7.8...v0.9.0
+[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/wp-labs/wp-connectors/compare/v0.7.8...v0.10.0
 [0.8.0]: https://github.com/wp-labs/wp-connectors/compare/v0.7.8...v0.8.0
 [0.7.8]: https://github.com/wp-labs/wp-connectors/compare/v0.7.7...v0.7.8
 [0.7.7]: https://github.com/wp-labs/wp-connectors/compare/v0.7.6...v0.7.7
