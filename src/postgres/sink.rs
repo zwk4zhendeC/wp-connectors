@@ -8,13 +8,13 @@ use wp_connector_api::{
 use wp_log::error_data;
 use wp_model_core::model::{DataRecord, DataType};
 
-pub struct MysqlSink {
+pub struct PostgresSink {
     pub db: DatabaseConnection,
     pub table: String,
     pub cloumn_name: Vec<String>,
 }
 
-impl MysqlSink {
+impl PostgresSink {
     pub fn new(db: DatabaseConnection, table: String, cloumn_name: Vec<String>) -> Self {
         Self {
             db,
@@ -26,11 +26,11 @@ impl MysqlSink {
     fn base_insert_prefix(&self) -> String {
         // 使用 INSERT IGNORE：若数据库已写入但客户端因断连未收到响应，重试时避免主键/唯一键冲突
         format!(
-            "INSERT IGNORE INTO {} ({}) VALUES ",
+            "INSERT INTO {} ({}) VALUES ",
             self.table,
             self.cloumn_name
                 .iter()
-                .map(|s| format!("`{}`", s))
+                .map(|s| format!("\"{}\"", s))
                 .collect::<Vec<_>>()
                 .join(", ")
         )
@@ -59,20 +59,20 @@ impl MysqlSink {
 }
 
 #[async_trait]
-impl AsyncCtrl for MysqlSink {
+impl AsyncCtrl for PostgresSink {
     async fn stop(&mut self) -> SinkResult<()> {
         Ok(())
     }
     async fn reconnect(&mut self) -> SinkResult<()> {
         self.db.ping().await.map_err(|e| {
-            SinkError::from(SinkReason::Sink(format!("reconnect mysql fail: {}", e)))
+            SinkError::from(SinkReason::Sink(format!("reconnect postgres fail: {}", e)))
         })?;
         Ok(())
     }
 }
 
 #[async_trait]
-impl AsyncRecordSink for MysqlSink {
+impl AsyncRecordSink for PostgresSink {
     async fn sink_record(&mut self, data: &DataRecord) -> SinkResult<()> {
         self.sink_records(vec![Arc::new(data.clone())]).await
     }
@@ -88,7 +88,7 @@ impl AsyncRecordSink for MysqlSink {
             sql.push_str(&raws.join(","));
             if let Err(e) = self.db.execute_unprepared(sql.as_str()).await {
                 return Err(SinkError::from(SinkReason::Sink(format!(
-                    "mysql exec cloumns:{:?}, fail: {}, sql: {}",
+                    "postgres exec cloumns:{:?}, fail: {}, sql: {}",
                     self.cloumn_name, e, sql
                 ))));
             }
@@ -98,38 +98,38 @@ impl AsyncRecordSink for MysqlSink {
 }
 
 #[async_trait]
-impl AsyncRawDataSink for MysqlSink {
+impl AsyncRawDataSink for PostgresSink {
     async fn sink_str(&mut self, _data: &str) -> SinkResult<()> {
         Err(SinkError::from(SinkReason::Sink(
-            "mysql sink does not accept raw input".into(),
+            "postgres sink does not accept raw input".into(),
         )))
     }
     async fn sink_bytes(&mut self, _data: &[u8]) -> SinkResult<()> {
         Err(SinkError::from(SinkReason::Sink(
-            "mysql sink does not accept raw bytes".into(),
+            "postgres sink does not accept raw bytes".into(),
         )))
     }
 
     async fn sink_str_batch(&mut self, _data: Vec<&str>) -> SinkResult<()> {
         Err(SinkError::from(SinkReason::Sink(
-            "mysql sink does not accept raw input".into(),
+            "postgres sink does not accept raw input".into(),
         )))
     }
     async fn sink_bytes_batch(&mut self, _data: Vec<&[u8]>) -> SinkResult<()> {
         Err(SinkError::from(SinkReason::Sink(
-            "mysql sink does not accept raw bytes".into(),
+            "postgres sink does not accept raw bytes".into(),
         )))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::MysqlSink;
+    use super::PostgresSink;
     use sea_orm::DatabaseConnection;
     use wp_model_core::model::{DataField, DataRecord};
 
-    fn make_sink(table: &str, columns: Vec<&str>) -> MysqlSink {
-        MysqlSink::new(
+    fn make_sink(table: &str, columns: Vec<&str>) -> PostgresSink {
+        PostgresSink::new(
             DatabaseConnection::default(),
             table.to_string(),
             columns.into_iter().map(|s| s.to_string()).collect(),
@@ -137,14 +137,14 @@ mod tests {
     }
 
     #[test]
-    fn mysql_sink_base_insert_prefix() {
+    fn postgres_sink_base_insert_prefix() {
         let sink = make_sink("users", vec!["name", "age"]);
         let sql = sink.base_insert_prefix();
-        assert_eq!(sql, "INSERT IGNORE INTO users (`name`, `age`) VALUES ");
+        assert_eq!(sql, "INSERT INTO users (\"name\", \"age\") VALUES ");
     }
 
     #[test]
-    fn mysql_sink_format_values_tuple() {
+    fn postgres_sink_format_values_tuple() {
         let sink = make_sink("users", vec!["name", "age", "note"]);
         let mut record = DataRecord::default();
         record.append(DataField::from_chars("name", "O'Reilly"));
