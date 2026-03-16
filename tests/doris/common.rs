@@ -172,7 +172,7 @@ pub async fn init_doris_database() -> Result<()> {
     );
 
     let mut last_error = None;
-    for attempt in 1..=10 {
+    for attempt in 1..= 10 {
         match db.execute_unprepared(&create_table_sql).await {
             Ok(_) => {
                 println!("✓ 表创建成功");
