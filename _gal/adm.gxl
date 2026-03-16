@@ -1,34 +1,11 @@
-extern mod ver { path = "./_gal/mods" }
+extern mod cfm { git = "https://github.com/galaxy-operators/cfm-gxl.git", branch = "${GXL_CHANNEL:develop}" }
 mod  envs {
   env default {
-    root = "./" ;
   }
 }
-mod main    {
-  flow _setup_depends {
-    gx.cmd (  "cargo install cargo-semver --vers 1.0.0-alpha.3" );
-  }
-  flow up_patch | ver.patch {
-  }
-  flow up_feat |  ver.feature {
-  }
-  flow ver.use | @release | _dist {
-        MTU_CNN = "";
-        VERSION_MTU = "v${VERSION}" ;
-  }
-  flow _read_alpha_mtu {
-        gx.read_stdin ( name : "MTU", prompt : "pls input maturity, ex : alpha.3" );
-        gx.echo ( "${VERSION}-${MTU}" );
-  }
-  flow _read_beta_mtu {
-        gx.read_stdin ( name : "MTU", prompt : "pls input maturity, ex : beta.1" );
-        gx.echo ( "${VERSION}-${MTU}" );
-  }
 
-  flow _dist {
-    gx.cmd (  "git commit -a -m  'ci ${VERSION_MTU}'" , suc: "0,1" );
-    gx.cmd (  "git push "  );
-    gx.cmd (  "git tag ${VERSION_MTU}"  );
-    gx.cmd (  "git push --tags "  );
-  }
+mod main    : lib_ver_adm {
+
+    #[auto_load(exit)]
+    flow _set_ver : ver.set_cargo_ver {}
 }
