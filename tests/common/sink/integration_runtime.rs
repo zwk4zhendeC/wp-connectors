@@ -31,23 +31,24 @@ impl<T: ComponentTool + Sync, F: SinkFactory> SinkIntegrationRuntime<T, F> {
         // 1. 启动 Docker Compose
         println!("启动 Docker Compose...");
         self.component_tool.setup_and_up().await?;
-        self.component_tool.wait_ready().await?;
 
         // 2. 遍历每个 SinkInfo
         for (idx, sink_info) in self.sink_infos.iter().enumerate() {
-            println!("\n========== 测试 Sink #{} ==========", idx + 1);
+            let kind = sink_info.factory().kind();
+            let display_name = format_display_name(kind, sink_info.test_name(), idx);
+            println!("\n========== 测试 Sink: {} =========", display_name);
 
             // 2.1 执行异步初始化
             println!("执行初始化...");
             sink_info.init().await?;
+            sink_info.wait_ready().await?;
 
             // 2.2 构建 SinkSpec
-            let kind = sink_info.factory().kind();
             let spec = SinkSpec {
                 group: "integration_test".to_string(),
-                name: format!("{}_{}", kind, idx),
+                name: display_name.clone(),
                 kind: kind.to_string(),
-                connector_id: format!("{}_{}", kind, idx),
+                connector_id: display_name.clone(),
                 params: sink_info.params().clone(),
                 filter: None,
             };
@@ -88,12 +89,10 @@ impl<T: ComponentTool + Sync, F: SinkFactory> SinkIntegrationRuntime<T, F> {
             }
 
             // 2.8 重启 ComponentTool
-            println!("\n重启 Docker Compose...");
+            println!("\n重启 外部组件...");
             self.component_tool.restart().await?;
-            self.component_tool.wait_ready().await?;
-
-            println!("重启后重新执行初始化...");
-            sink_info.init().await?;
+            self.component_tool.wait_started().await?;
+            sink_info.wait_ready().await?;
 
             // 2.9 重启后再次发送
             println!("重启后再次发送数据...");
@@ -168,5 +167,12 @@ impl<T: ComponentTool + Sync, F: SinkFactory> SinkIntegrationRuntime<T, F> {
                 record
             })
             .collect()
+    }
+}
+
+fn format_display_name(kind: &str, test_name: Option<&str>, idx: usize) -> String {
+    match test_name {
+        Some(name) if !name.trim().is_empty() => format!("{}_{}_{}", kind, name.trim(), idx + 1),
+        _ => format!("{}_{}", kind, idx + 1),
     }
 }

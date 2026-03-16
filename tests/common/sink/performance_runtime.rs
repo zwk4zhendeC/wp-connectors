@@ -107,10 +107,11 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
     pub async fn run(&self) -> Result<()> {
         println!("启动性能测试环境...");
         self.component_tool.setup_and_up().await?;
-        self.component_tool.wait_ready().await?;
 
         for (idx, sink_info) in self.sink_infos.iter().enumerate() {
-            println!("\n========== 性能测试 Sink #{} =========", idx + 1);
+            let kind = sink_info.factory().kind();
+            let display_name = format_display_name(kind, sink_info.test_name(), idx);
+            println!("\n========== 性能测试 Sink: {} =========", display_name);
             println!(
                 "配置: total_records={}, task_count={}, batch_size={}, progress_interval={}s",
                 self.config.total_records,
@@ -121,8 +122,9 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
 
             println!("执行初始化...");
             sink_info.init().await?;
+            sink_info.wait_ready().await?;
 
-            self.run_single_sink(idx, sink_info).await?;
+            self.run_single_sink(idx, &display_name, sink_info).await?;
         }
 
         println!("\n清理性能测试环境...");
@@ -130,22 +132,21 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
         Ok(())
     }
 
-    async fn run_single_sink(&self, idx: usize, sink_info: &SinkInfo<F>) -> Result<()> {
+    async fn run_single_sink(
+        &self,
+        _idx: usize,
+        display_name: &str,
+        sink_info: &SinkInfo<F>,
+    ) -> Result<()> {
         let kind = sink_info.factory().kind();
-        let count_before = if sink_info.has_count_fn() {
-            let count = sink_info.count().await?;
-            println!("发送前数量: {}", count);
-            Some(count)
-        } else {
-            println!("未配置 count_fn，跳过发送前数量统计");
-            None
-        };
+        let count_before = sink_info.count().await?;
+        println!("发送前数量: {}", count_before);
 
         let base_spec = SinkSpec {
             group: "performance_test".to_string(),
-            name: format!("perf_{}_{}", kind, idx),
+            name: format!("perf_{}", display_name),
             kind: kind.to_string(),
-            connector_id: format!("perf_{}_{}", kind, idx),
+            connector_id: format!("perf_{}", display_name),
             params: sink_info.params().clone(),
             filter: None,
         };
@@ -246,18 +247,16 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
         println!("峰值内存: {}", format_memory(monitor_summary.peak_memory));
         println!("平均内存: {}", format_memory(monitor_summary.avg_memory));
 
-        if let Some(before) = count_before {
-            let count_after = sink_info.count().await?;
-            let diff = count_after - before;
-            println!("发送后数量: {}", count_after);
-            println!("数量校验新增: {}", diff);
-            if diff < sent_records as i64 {
-                anyhow::bail!(
-                    "性能测试数量校验失败，预期至少新增 {} 条，实际新增 {} 条",
-                    sent_records,
-                    diff
-                );
-            }
+        let count_after = sink_info.count().await?;
+        let diff = count_after - count_before;
+        println!("发送后数量: {}", count_after);
+        println!("数量校验新增: {}", diff);
+        if diff < sent_records as i64 {
+            anyhow::bail!(
+                "性能测试数量校验失败，预期至少新增 {} 条，实际新增 {} 条",
+                sent_records,
+                diff
+            );
         }
 
         if task_failures > 0 {
@@ -361,6 +360,13 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
                 avg_memory,
             }
         })
+    }
+}
+
+fn format_display_name(kind: &str, test_name: Option<&str>, idx: usize) -> String {
+    match test_name {
+        Some(name) if !name.trim().is_empty() => format!("{}_{}_{}", kind, name.trim(), idx + 1),
+        _ => format!("{}_{}", kind, idx + 1),
     }
 }
 

@@ -8,7 +8,9 @@ use crate::common::{
         sink_info::SinkInfo,
     },
 };
-use crate::doris_common::{create_doris_test_config, init_doris_database, query_table_count};
+use crate::doris_common::{
+    create_doris_test_config, init_doris_database, query_table_count, wait_for_doris_sink_ready,
+};
 
 #[tokio::test]
 #[ignore = "性能测试默认不在 CI 中运行，请手动执行"]
@@ -16,9 +18,14 @@ use crate::doris_common::{create_doris_test_config, init_doris_database, query_t
 async fn test_doris_sink_performance() -> Result<()> {
     let docker_tool = DockerComposeTool::new("tests/doris/performance_tests.yml")?;
     // 添加sink信息、包括sink工厂、测试的初始化方法，基础方法
-    let sink_info = SinkInfo::new(DorisSinkFactory, create_doris_test_config())
-        .with_async_init(|| async { init_doris_database().await })
-        .with_async_count_fn(|_params| async { query_table_count().await });
+    let sink_info = SinkInfo::new(
+        DorisSinkFactory,
+        create_doris_test_config(),
+        |_params| async { query_table_count().await },
+    )
+    .with_test_name("baseline")
+    .with_async_init(|| async { init_doris_database().await })
+    .with_async_wait_ready(|_params| async { wait_for_doris_sink_ready().await });
     //性能测试配置
     let config = SinkPerformanceConfig::default()
         //批量大小

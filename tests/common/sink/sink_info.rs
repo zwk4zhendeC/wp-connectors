@@ -33,30 +33,53 @@ pub type AsyncInitFn =
 pub type AsyncCountFn =
     Box<dyn Fn(ParamMap) -> Pin<Box<dyn Future<Output = Result<i64>> + Send>> + Send + Sync>;
 
+/// 异步就绪检查函数类型
+pub type AsyncWaitReadyFn =
+    Box<dyn Fn(ParamMap) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+
 /// Sink 集成测试信息结构体
 pub struct SinkInfo<F: SinkFactory> {
     /// SinkFactory 实例（必须）
     factory: F,
+    /// 测试名称（可选）
+    test_name: Option<String>,
     /// 测试配置参数（必须）
     params: ParamMap,
     /// 异步初始化方法（可选）
     init_fn: Option<AsyncInitFn>,
     /// 初始化脚本路径（可选）
     init_sh: Option<String>,
-    /// 异步计数方法（可选）- 用于获取 sink 当前发送的数量
-    count_fn: Option<AsyncCountFn>,
+    /// 异步计数方法（必选）- 用于获取 sink 当前发送的数量
+    count_fn: AsyncCountFn,
+    /// Sink 级别的就绪检查（可选）
+    wait_ready_fn: Option<AsyncWaitReadyFn>,
 }
 
 impl<F: SinkFactory> SinkInfo<F> {
-    /// 创建新的集成测试信息实例（必须提供 factory 和 params）
-    pub fn new(factory: F, params: ParamMap) -> Self {
+    /// 创建新的集成测试信息实例（必须提供 factory、params 和 count_fn）
+    pub fn new<Fut>(
+        factory: F,
+        params: ParamMap,
+        count_fn: impl Fn(ParamMap) -> Fut + Send + Sync + 'static,
+    ) -> Self
+    where
+        Fut: Future<Output = Result<i64>> + Send + 'static,
+    {
         Self {
             factory,
+            test_name: None,
             params,
             init_fn: None,
             init_sh: None,
-            count_fn: None,
+            count_fn: Box::new(move |params| Box::pin(count_fn(params))),
+            wait_ready_fn: None,
         }
+    }
+
+    /// 设置测试名称（链式调用）
+    pub fn with_test_name(mut self, test_name: impl Into<String>) -> Self {
+        self.test_name = Some(test_name.into());
+        self
     }
 
     /// 设置异步初始化方法（链式调用）
@@ -75,15 +98,15 @@ impl<F: SinkFactory> SinkInfo<F> {
         self
     }
 
-    /// 设置异步计数方法（链式调用）
-    pub fn with_async_count_fn<Fut>(
+    /// 设置 Sink 级别异步就绪检查（链式调用）
+    pub fn with_async_wait_ready<Fut>(
         mut self,
-        count_fn: impl Fn(ParamMap) -> Fut + Send + Sync + 'static,
+        wait_ready_fn: impl Fn(ParamMap) -> Fut + Send + Sync + 'static,
     ) -> Self
     where
-        Fut: Future<Output = Result<i64>> + Send + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
     {
-        self.count_fn = Some(Box::new(move |params| Box::pin(count_fn(params))));
+        self.wait_ready_fn = Some(Box::new(move |params| Box::pin(wait_ready_fn(params))));
         self
     }
 
@@ -97,9 +120,9 @@ impl<F: SinkFactory> SinkInfo<F> {
         &self.params
     }
 
-    /// 是否配置了数量查询函数
-    pub fn has_count_fn(&self) -> bool {
-        self.count_fn.is_some()
+    /// 获取测试名称
+    pub fn test_name(&self) -> Option<&str> {
+        self.test_name.as_deref()
     }
 
     /// 执行初始化
@@ -117,13 +140,18 @@ impl<F: SinkFactory> SinkInfo<F> {
         Ok(())
     }
 
+    /// 执行 sink 级就绪检查
+    pub async fn wait_ready(&self) -> Result<()> {
+        if let Some(wait_ready_fn) = &self.wait_ready_fn {
+            wait_ready_fn(self.params.clone()).await?;
+        }
+
+        Ok(())
+    }
+
     /// 获取当前数量
     pub async fn count(&self) -> Result<i64> {
-        if let Some(count_fn) = &self.count_fn {
-            count_fn(self.params.clone()).await
-        } else {
-            Ok(0)
-        }
+        (self.count_fn)(self.params.clone()).await
     }
 
     /// 运行初始化脚本

@@ -17,17 +17,17 @@ pub trait ComponentTool {
     /// 停止组件
     async fn down(&self) -> Result<()>;
 
-    /// 等待组件就绪
-    async fn wait_ready(&self) -> Result<()>;
+    /// 等待组件完成启动
+    async fn wait_started(&self) -> Result<()>;
 
     /// 重启组件
     async fn restart(&self) -> Result<()>;
 
-    /// 完整启动流程：拉取依赖 + 启动 + 等待就绪
+    /// 完整启动流程：拉取依赖 + 启动 + 等待启动完成
     async fn setup_and_up(&self) -> Result<()> {
         self.pull_dependencies().await?;
         self.up().await?;
-        self.wait_ready().await?;
+        self.wait_started().await?;
         Ok(())
     }
 }
@@ -137,7 +137,7 @@ impl DockerComposeTool {
     }
 
     /// 等待所有服务进入运行状态
-    pub async fn wait_ready(&self) -> Result<()> {
+    pub async fn wait_started(&self) -> Result<()> {
         let expected = self
             .services(&["--services"], "获取 docker compose 服务列表失败")
             .await?;
@@ -175,7 +175,6 @@ impl DockerComposeTool {
             anyhow::bail!("重启服务失败: {}", String::from_utf8_lossy(&output.stderr));
         }
 
-        self.wait_ready().await?;
         let status = self.ps().await?;
         println!("==> 服务状态:\n{}", status);
         println!("✓ 服务已重启");
@@ -197,8 +196,8 @@ impl ComponentTool for DockerComposeTool {
         DockerComposeTool::down(self).await
     }
 
-    async fn wait_ready(&self) -> Result<()> {
-        DockerComposeTool::wait_ready(self).await
+    async fn wait_started(&self) -> Result<()> {
+        DockerComposeTool::wait_started(self).await
     }
 
     async fn restart(&self) -> Result<()> {
@@ -208,40 +207,78 @@ impl ComponentTool for DockerComposeTool {
 
 /// Shell 脚本操作工具
 #[allow(dead_code)]
+pub enum ShellScriptRestart<P: AsRef<Path>> {
+    Default,
+    Script(P),
+    NoRestart,
+}
+
+/// Shell 脚本操作工具
+#[allow(dead_code)]
 pub struct ShellScriptTool {
-    install_deps_sh: String,
+    install_deps_sh: Option<String>,
     start_sh: String,
     stop_sh: String,
     ready_sh: Option<String>,
+    restart: ShellScriptRestart<String>,
 }
 
 #[allow(dead_code)]
 impl ShellScriptTool {
     /// 创建新的 Shell 脚本工具实例
-    pub fn new<P: AsRef<Path>>(install_deps_sh: P, start_sh: P, stop_sh: P) -> Result<Self> {
-        Self::new_with_ready(install_deps_sh, start_sh, stop_sh, None::<P>)
+    pub fn new<P: AsRef<Path>>(start_sh: P, stop_sh: P) -> Result<Self> {
+        Self::new_with_options(
+            start_sh,
+            stop_sh,
+            None::<P>,
+            None::<P>,
+            ShellScriptRestart::Default,
+        )
     }
 
     /// 创建带就绪检查脚本的 Shell 脚本工具实例
     pub fn new_with_ready<P: AsRef<Path>>(
-        install_deps_sh: P,
         start_sh: P,
         stop_sh: P,
         ready_sh: Option<P>,
     ) -> Result<Self> {
-        let install = install_deps_sh.as_ref();
+        Self::new_with_options(
+            start_sh,
+            stop_sh,
+            None::<P>,
+            ready_sh,
+            ShellScriptRestart::Default,
+        )
+    }
+
+    /// 创建带完整可选脚本配置的 Shell 脚本工具实例
+    pub fn new_with_options<P: AsRef<Path>>(
+        start_sh: P,
+        stop_sh: P,
+        install_deps_sh: Option<P>,
+        ready_sh: Option<P>,
+        restart: ShellScriptRestart<P>,
+    ) -> Result<Self> {
         let start = start_sh.as_ref();
         let stop = stop_sh.as_ref();
 
-        if !install.exists() {
-            anyhow::bail!("安装依赖脚本不存在: {}", install.display());
-        }
         if !start.exists() {
             anyhow::bail!("启动脚本不存在: {}", start.display());
         }
         if !stop.exists() {
             anyhow::bail!("停止脚本不存在: {}", stop.display());
         }
+
+        let install_deps_sh = match install_deps_sh {
+            Some(install) => {
+                let install = install.as_ref();
+                if !install.exists() {
+                    anyhow::bail!("安装依赖脚本不存在: {}", install.display());
+                }
+                Some(install.to_string_lossy().to_string())
+            }
+            None => None,
+        };
 
         let ready_sh = match ready_sh {
             Some(ready) => {
@@ -254,19 +291,36 @@ impl ShellScriptTool {
             None => None,
         };
 
+        let restart = match restart {
+            ShellScriptRestart::Default => ShellScriptRestart::Default,
+            ShellScriptRestart::Script(restart) => {
+                let restart = restart.as_ref();
+                if !restart.exists() {
+                    anyhow::bail!("重启脚本不存在: {}", restart.display());
+                }
+                ShellScriptRestart::Script(restart.to_string_lossy().to_string())
+            }
+            ShellScriptRestart::NoRestart => ShellScriptRestart::NoRestart,
+        };
+
         Ok(Self {
-            install_deps_sh: install.to_string_lossy().to_string(),
+            install_deps_sh,
             start_sh: start.to_string_lossy().to_string(),
             stop_sh: stop.to_string_lossy().to_string(),
             ready_sh,
+            restart,
         })
     }
 
     /// 安装依赖
     pub async fn install(&self) -> Result<()> {
-        println!("==> 安装依赖: {}", self.install_deps_sh);
-        self.run_script(&self.install_deps_sh).await?;
-        println!("✓ 依赖安装完成");
+        if let Some(install_deps_sh) = &self.install_deps_sh {
+            println!("==> 安装依赖: {}", install_deps_sh);
+            self.run_script(install_deps_sh).await?;
+            println!("✓ 依赖安装完成");
+        } else {
+            println!("==> 未提供安装依赖脚本，跳过此步骤");
+        }
         Ok(())
     }
 
@@ -288,17 +342,27 @@ impl ShellScriptTool {
 
     /// 重启服务
     pub async fn restart(&self) -> Result<()> {
-        println!("==> 重启服务...");
-        self.stop().await?;
-        sleep(Duration::from_secs(2)).await;
-        self.start().await?;
-        self.wait_ready().await?;
+        match &self.restart {
+            ShellScriptRestart::Script(restart_sh) => {
+                println!("==> 重启服务: {}", restart_sh);
+                self.run_script(restart_sh).await?;
+            }
+            ShellScriptRestart::Default => {
+                println!("==> 未提供重启脚本，使用 stop + start 回退重启...");
+                self.stop().await?;
+                sleep(Duration::from_secs(2)).await;
+                self.start().await?;
+            }
+            ShellScriptRestart::NoRestart => {
+                println!("==> 配置为不重启，跳过重启步骤");
+            }
+        }
         println!("✓ 服务已重启");
         Ok(())
     }
 
-    /// 等待服务就绪
-    pub async fn wait_ready(&self) -> Result<()> {
+    /// 等待服务完成启动
+    pub async fn wait_started(&self) -> Result<()> {
         match &self.ready_sh {
             Some(ready_sh) => {
                 println!("==> 检查服务就绪: {}", ready_sh);
@@ -352,8 +416,8 @@ impl ComponentTool for ShellScriptTool {
         ShellScriptTool::stop(self).await
     }
 
-    async fn wait_ready(&self) -> Result<()> {
-        ShellScriptTool::wait_ready(self).await
+    async fn wait_started(&self) -> Result<()> {
+        ShellScriptTool::wait_started(self).await
     }
 
     async fn restart(&self) -> Result<()> {

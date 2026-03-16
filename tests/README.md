@@ -34,9 +34,9 @@ tests/
 - `pull_dependencies()`：拉取镜像或安装依赖
 - `up()`：启动组件
 - `down()`：停止组件
-- `wait_ready()`：等待组件就绪
+- `wait_started()`：等待组件启动完成
 - `restart()`：重启组件
-- `setup_and_up()`：完整启动流程，默认会执行 `pull -> up -> wait_ready`
+- `setup_and_up()`：完整启动流程，默认会执行 `pull -> up -> wait_started`
 
 #### `DockerComposeTool`
 
@@ -52,12 +52,12 @@ let tool = DockerComposeTool::new("tests/doris/integration_tests.yml")?;
 
 ```rust
 tool.setup_and_up().await?;
-tool.wait_ready().await?;
+tool.wait_started().await?;
 tool.restart().await?;
 tool.down().await?;
 ```
 
-`wait_ready()` 目前通过 `docker compose ps` 轮询服务是否进入 `running` 状态。
+`wait_started()` 目前通过 `docker compose ps` 轮询服务是否进入 `running` 状态。
 
 #### `ShellScriptTool`
 
@@ -67,24 +67,31 @@ tool.down().await?;
 
 ```rust
 let tool = ShellScriptTool::new(
-    "scripts/install.sh",
     "scripts/start.sh",
     "scripts/stop.sh",
 )?;
 ```
 
-如果需要显式就绪检查，可以提供 `ready` 脚本：
+如果需要安装依赖、显式就绪检查或自定义重启逻辑，可以提供可选脚本：
 
 ```rust
-let tool = ShellScriptTool::new_with_ready(
-    "scripts/install.sh",
+let tool = ShellScriptTool::new_with_options(
     "scripts/start.sh",
     "scripts/stop.sh",
+    Some("scripts/install.sh"),
     Some("scripts/ready.sh"),
+    ShellScriptRestart::Script("scripts/restart.sh"),
 )?;
 ```
 
-如果没有 `ready` 脚本，`wait_ready()` 会直接视为成功。
+说明：
+
+- `start` / `stop` 脚本是必选项
+- `install` / `ready` 是可选项
+- `restart` 使用 `ShellScriptRestart` 枚举配置：`Default` / `Script(...)` / `NoRestart`
+- 如果没有 `ready` 脚本，`wait_started()` 会直接视为成功
+- `ShellScriptRestart::Default` 会回退为 `stop() + start()`
+- `ShellScriptRestart::NoRestart` 会跳过重启动作
 
 ### `sink_info`
 
@@ -95,27 +102,33 @@ let tool = ShellScriptTool::new_with_ready(
 `SinkInfo` 负责描述：
 
 - 使用哪个 `SinkFactory`
+- 可选的测试名称 `test_name`
 - sink 的参数 `ParamMap`
 - 初始化逻辑
-- 可选的数量查询逻辑 `count_fn`
+- 必选的数量查询逻辑 `count_fn`
+- 可选的 sink 级就绪检查逻辑 `wait_ready_fn`
 
 创建方式：
 
 ```rust
-let sink_info = SinkInfo::new(MySinkFactory, params)
+let sink_info = SinkInfo::new(MySinkFactory, params, |_params| async { query_count().await })
+    .with_test_name("basic_json")
     .with_async_init(|| async { init_database().await })
-    .with_async_count_fn(|_params| async { query_count().await });
+    .with_async_wait_ready(|_params| async { wait_sink_ready().await });
 ```
 
 常见方法：
 
 - `with_async_init(...)`
 - `with_init_sh(...)`
-- `with_async_count_fn(...)`
+- `with_test_name(...)`
+- `with_async_wait_ready(...)`
 - `init().await`
+- `wait_ready().await`
 - `count().await`
 
-如果测试不需要验证最终落库数量，可以不配置 `count_fn`。
+如果 sink 目标端需要额外探测才能确认可用，可以配置 `wait_ready_fn`；未配置时会默认跳过该步骤。
+如果配置了 `test_name`，运行时会在遍历开始时输出 `kind + test_name + 编号` 形式的测试标识。
 
 ### `integration_runtime`
 
@@ -128,9 +141,10 @@ let sink_info = SinkInfo::new(MySinkFactory, params)
 3. 调用 `init()` 准备库表或依赖数据
 4. 创建 sink
 5. 发送固定数量测试数据（当前默认 3 条）
-6. 通过 `count_fn` 校验发送前后数量变化
-7. 重启环境后再次发送并再次校验
-8. 清理环境
+6. 调用 `wait_ready()` 确认 sink 目标端可用
+7. 通过 `count_fn` 校验发送前后数量变化
+8. 重启环境后执行 `wait_started() + wait_ready()`，再次发送并再次校验
+9. 清理环境
 
 典型用法：
 
@@ -150,13 +164,14 @@ runtime.run().await?;
 3. 调用 `init()` 准备库表
 4. 按配置创建多个 sink 和多个 Tokio 任务
 5. 按批次生成测试数据并发送
-6. 定时打印性能指标：
+6. 调用 `wait_ready()` 确认 sink 目标端可用
+7. 定时打印性能指标：
    - 当前 EPS
    - 总体 EPS
    - 当前进程 CPU
    - 当前进程内存
    - 峰值 CPU / 峰值内存
-7. 发送结束后如果配置了 `count_fn`，会再次查询数量并校验增量
+8. 发送结束后会再次查询数量并校验增量
 
 #### `SinkPerformanceConfig`
 
@@ -195,9 +210,10 @@ runtime.run().await?;
 3. 创建 `ComponentTool`，例如 `DockerComposeTool`
 4. 构造 `SinkInfo`
 5. 给 `SinkInfo` 配置：
-   - 参数 `ParamMap`
-   - `with_async_init(...)`
-   - `with_async_count_fn(...)`
+    - 参数 `ParamMap`
+    - `with_async_init(...)`
+    - 必选 `count_fn`
+    - 可选 `with_async_wait_ready(...)`
 6. 使用 `SinkIntegrationRuntime` 执行
 
 示例：
@@ -206,9 +222,13 @@ runtime.run().await?;
 #[tokio::test]
 async fn test_xxx_sink_full_integration() -> anyhow::Result<()> {
     let component_tool = DockerComposeTool::new("tests/doris/integration_tests.yml")?;
-    let sink_info = SinkInfo::new(DorisSinkFactory, create_doris_test_config())
+    let sink_info = SinkInfo::new(
+        DorisSinkFactory,
+        create_doris_test_config(),
+        |_params| async { query_table_count().await },
+    )
         .with_async_init(|| async { init_doris_database().await })
-        .with_async_count_fn(|_params| async { query_table_count().await });
+        .with_async_wait_ready(|_params| async { wait_for_sink_ready().await });
 
     let runtime = SinkIntegrationRuntime::new(component_tool, vec![sink_info]);
     runtime.run().await
@@ -223,7 +243,8 @@ async fn test_xxx_sink_full_integration() -> anyhow::Result<()> {
 2. 优先复用该目录已有的 `common.rs`
 3. 创建 `ComponentTool`
 4. 创建 `SinkInfo`
-   - 性能测试建议同时配置 `count_fn`，方便结束后做数量校验
+   - 必须配置 `count_fn`，用于发送前后数量校验
+   - 如有需要，可额外配置 `with_async_wait_ready(...)`
 5. 创建 `SinkPerformanceConfig`
 6. 使用 `SinkPerformanceRuntime` 执行
 7. 给测试打上 `#[ignore]`，默认不进入 CI
@@ -235,9 +256,13 @@ async fn test_xxx_sink_full_integration() -> anyhow::Result<()> {
 #[ignore = "性能测试默认不在 CI 中运行，请手动执行"]
 async fn test_doris_sink_performance() -> anyhow::Result<()> {
     let component_tool = DockerComposeTool::new("tests/doris/performance_tests.yml")?;
-    let sink_info = SinkInfo::new(DorisSinkFactory, create_doris_test_config())
+    let sink_info = SinkInfo::new(
+        DorisSinkFactory,
+        create_doris_test_config(),
+        |_params| async { query_table_count().await },
+    )
         .with_async_init(|| async { init_doris_database().await })
-        .with_async_count_fn(|_params| async { query_table_count().await });
+        .with_async_wait_ready(|_params| async { wait_for_sink_ready().await });
 
     let config = SinkPerformanceConfig::new()
         .with_total_records(2_000_000)
@@ -262,6 +287,7 @@ cargo test --lib --bins --doc --all-features
 当前顶层集成测试 target 主要有：
 
 - `doris_tests`
+- `http_tests`
 - `kafka_tests`
 - `common_kafka`
 
@@ -301,6 +327,20 @@ cargo test --release --package wp-connectors --test doris_tests performance_test
 
 ```bash
 cargo test --package wp-connectors --test doris_tests --features doris -- --ignored --nocapture --test-threads=1
+```
+
+### 运行 HTTP 集成测试
+
+```bash
+cargo test --package wp-connectors --test http_tests --features http integration_tests::test_http_sink_full_integration -- --exact --nocapture
+```
+
+### 运行 HTTP 性能测试
+
+HTTP 性能测试默认带 `#[ignore]`，需要显式加 `--ignored`。
+
+```bash
+cargo test --package wp-connectors --test http_tests --features http performance_tests::test_http_sink_performance -- --exact --nocapture --ignored
 ```
 
 ## 编写建议
