@@ -16,7 +16,7 @@ pub fn create_sample_record(id: i64) -> DataRecord {
     ));
     record.append(DataField::from_digit("status", 200));
     record.append(DataField::from_digit("size", 1024));
-    record.append(DataField::from_chars("referer", "https://example.com/test"));
+    record.append(DataField::from_chars("referer", "000123"));
     record.append(DataField::from_chars(
         "http/agent",
         "Mozilla/5.0 (Concurrent Test)",

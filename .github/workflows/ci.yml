@@ -22,8 +22,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
+      # - name: Debug
+      #   uses: mxschmitt/action-tmate@v3
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-features -- --test-threads=1
+      - run: cargo test --lib --bins --all-features -- --test-threads=1
 
   fmt:
     name: Rustfmt
@@ -45,6 +47,16 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets --all-features -- -D warnings
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run integration test
+        run:  cargo test --all-features -- --test-threads=1
 
   security:
     name: Security Audit
