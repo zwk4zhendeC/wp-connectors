@@ -210,7 +210,6 @@ impl AsyncRecordSink for ClickHouseSink {
 
         // 转换为 NDJSON
         let ndjson = self.records_to_ndjson(&data)?;
-        println!("{:#?}", ndjson);
         let row_count = data.len();
 
         // 执行批量插入

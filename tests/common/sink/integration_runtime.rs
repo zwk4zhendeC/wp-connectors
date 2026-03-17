@@ -28,8 +28,7 @@ impl<T: ComponentTool + Sync, F: SinkFactory> SinkIntegrationRuntime<T, F> {
 
     /// 运行集成测试
     pub async fn run(&self) -> Result<()> {
-        // 1. 启动 Docker Compose
-        println!("启动 Docker Compose...");
+        println!("启动组件...");
         self.component_tool.setup_and_up().await?;
 
         // 2. 遍历每个 SinkInfo

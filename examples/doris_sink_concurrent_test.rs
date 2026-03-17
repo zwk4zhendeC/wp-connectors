@@ -11,31 +11,32 @@ use std::sync::Arc;
 use std::time::Instant;
 use wp_connector_api::AsyncRecordSink;
 use wp_connectors::doris::{DorisSink, DorisSinkConfig};
-use wp_model_core::model::{DataField, DataRecord};
+use wp_model_core::model::DataRecord;
 
-/// 创建测试用的 DataRecord（与 wp_nginx 表结构完全匹配）
-fn create_sample_record(id: i64) -> DataRecord {
-    let mut record = DataRecord::default();
-    record.append(DataField::from_digit("wp_event_id", id));
-    record.append(DataField::from_chars(
-        "wp_src_key",
-        format!("concurrent_test_{}", id),
-    ));
-    record.append(DataField::from_chars("sip", "192.168.1.100"));
-    record.append(DataField::from_chars("timestamp", "2024-03-02 10:00:00"));
-    record.append(DataField::from_chars(
-        "http/request",
-        format!("GET /api/test/{} HTTP/1.1", id),
-    ));
-    record.append(DataField::from_digit("status", 200));
-    record.append(DataField::from_digit("size", 1024));
-    record.append(DataField::from_chars("referer", "https://example.com/test"));
-    record.append(DataField::from_chars(
-        "http/agent",
-        "Mozilla/5.0 (Concurrent Test)",
-    ));
-    record
-}
+#[path = "common_utils.rs"]
+mod common_utils;
+// fn create_sample_record(id: i64) -> DataRecord {
+//     let mut record = DataRecord::default();
+//     record.append(DataField::from_digit("wp_event_id", id));
+//     record.append(DataField::from_chars(
+//         "wp_src_key",
+//         format!("concurrent_test_{}", id),
+//     ));
+//     record.append(DataField::from_chars("sip", "192.168.1.100"));
+//     record.append(DataField::from_chars("timestamp", "2024-03-02 10:00:00"));
+//     record.append(DataField::from_chars(
+//         "http/request",
+//         format!("GET /api/test/{} HTTP/1.1", id),
+//     ));
+//     record.append(DataField::from_digit("status", 200));
+//     record.append(DataField::from_digit("size", 1024));
+//     record.append(DataField::from_chars("referer", "https://example.com/test"));
+//     record.append(DataField::from_chars(
+//         "http/agent",
+//         "Mozilla/5.0 (Concurrent Test)",
+//     ));
+//     record
+// }
 
 /// 创建测试用的 DorisSink
 async fn create_test_sink() -> DorisSink {
@@ -85,6 +86,8 @@ async fn main() {
     // 预先创建所有 sink 实例
     println!("📦 创建 {} 个 DorisSink 实例...", task_count);
     let mut sinks = Vec::new();
+
+    let start = Instant::now();
     for i in 0..task_count {
         let sink = create_test_sink().await;
         sinks.push(sink);
@@ -110,7 +113,7 @@ async fn main() {
                 // 创建一批数据
                 let records: Vec<Arc<DataRecord>> = (0..current_batch)
                     .map(|i| {
-                        Arc::new(create_sample_record(
+                        Arc::new(common_utils::create_sample_record(
                             (task_id * records_per_task + sent + i) as i64,
                         ))
                     })
@@ -159,11 +162,6 @@ async fn main() {
         });
         handles.push(handle);
     }
-    println!("✅ 所有异步任务创建完成\n");
-
-    // 开始计时（在任务创建之后）
-    println!("🚀 开始并发发送数据...\n");
-    let start = Instant::now();
 
     // 等待所有任务完成
     println!("\n⏳ 等待所有任务完成...\n");
