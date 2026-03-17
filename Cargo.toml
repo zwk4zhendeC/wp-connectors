@@ -151,6 +151,7 @@ chrono = { workspace = true }
 httpmock = "0.8"
 quickcheck = "1.0"
 quickcheck_macros = "1.0"
+sysinfo = { version = "0.38", default-features = false, features = ["system"] }
 # criterion = { version = "0.5", features = ["async_tokio"] }
 
 # Examples in subdirectories

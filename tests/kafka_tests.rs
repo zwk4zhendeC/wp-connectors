@@ -4,5 +4,5 @@
 #[path = "kafka/integration_tests.rs"]
 mod integration_tests;
 
-#[path = "common.rs"]
+#[path = "common_kafka.rs"]
 mod common;

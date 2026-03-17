@@ -70,7 +70,7 @@ async fn main() {
     println!("========================================\n");
 
     // 配置参数（可根据需要调整）
-    let total_records = 200_0000; // 总记录数：1000w
+    let total_records = 1000_0000; // 总记录数：1000w
     let task_count = 4; // 并发任务数：10个
     let batch_size = 10_0000; // 每批次大小：1w条
     let records_per_task = total_records / task_count;
