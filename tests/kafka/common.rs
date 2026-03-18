@@ -10,6 +10,7 @@ use tokio::time::{Duration, timeout};
 use wp_connector_api::ParamMap;
 
 pub const TEST_KAFKA_BROKERS: &str = "127.0.0.1:9092";
+pub const ALL_KAFKA_FORMATS: [&str; 6] = ["json", "csv", "show", "kv", "raw", "proto-text"];
 const TEST_KAFKA_TOPIC_PREFIX: &str = "wp_kafka_sink";
 const KAFKA_READY_ATTEMPTS: usize = 20;
 const KAFKA_READY_INTERVAL_SECS: u64 = 2;
@@ -55,26 +56,23 @@ async fn probe_kafka_service_ready() -> Result<()> {
     Ok(())
 }
 
-async fn probe_kafka_sink_topic() -> Result<()> {
-    let topic = unique_topic("wp_kafka_ready_probe");
-    let producer = kafka_producer(&topic)?;
-    producer
-        .create_topic()
-        .await
-        .with_context(|| format!("创建 Kafka 探针 topic 失败: {topic}"))?;
-    producer
-        .publish(b"ready", Default::default())
-        .await
-        .with_context(|| format!("写入 Kafka 探针 topic 失败: {topic}"))?;
-    Ok(())
-}
-
-pub fn create_kafka_test_config() -> ParamMap {
-    create_kafka_config(unique_topic(TEST_KAFKA_TOPIC_PREFIX), "json")
-}
-
 pub fn create_kafka_performance_config() -> ParamMap {
     create_kafka_config(unique_topic("wp_kafka_perf"), "json")
+}
+
+pub fn create_kafka_test_scenarios() -> Vec<(String, ParamMap)> {
+    ALL_KAFKA_FORMATS
+        .into_iter()
+        .map(|fmt| {
+            (
+                format!("basic_{fmt}"),
+                create_kafka_config(
+                    unique_topic(&format!("{}_{}", TEST_KAFKA_TOPIC_PREFIX, fmt)),
+                    fmt,
+                ),
+            )
+        })
+        .collect()
 }
 
 fn create_kafka_config(topic: String, fmt: &str) -> ParamMap {
@@ -84,13 +82,7 @@ fn create_kafka_config(topic: String, fmt: &str) -> ParamMap {
     params.insert("num_partitions".into(), json!(1));
     params.insert("replication".into(), json!(1));
     params.insert("fmt".into(), json!(fmt));
-    params.insert(
-        "config".into(),
-        json!([
-            "acks=all",
-            "linger.ms=5"
-        ]),
-    );
+    params.insert("config".into(), json!(["acks=all", "linger.ms=5"]));
     params
 }
 
@@ -126,44 +118,6 @@ pub async fn wait_for_kafka_ready() -> Result<()> {
 
     anyhow::bail!(
         "等待 Kafka 服务就绪超时: {}",
-        last_error.unwrap_or_else(|| "未知错误".to_string())
-    )
-}
-
-pub async fn wait_for_kafka_sink_ready(_params: ParamMap) -> Result<()> {
-    wait_for_kafka_ready().await?;
-
-    let mut last_error = None;
-    let mut stable_successes = 0usize;
-
-    for attempt in 1..=KAFKA_READY_ATTEMPTS {
-        match probe_kafka_sink_topic().await {
-            Ok(()) => {
-                stable_successes += 1;
-                if stable_successes >= KAFKA_READY_STABLE_PROBES {
-                    println!(
-                        "✓ Kafka sink 已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
-                        KAFKA_READY_STABLE_PROBES, attempt
-                    );
-                    return Ok(());
-                }
-
-                println!(
-                    "Kafka sink 探测成功，继续观察稳定性（{}/{})...",
-                    stable_successes, KAFKA_READY_STABLE_PROBES
-                );
-            }
-            Err(err) => {
-                stable_successes = 0;
-                last_error = Some(err.to_string());
-            }
-        }
-
-        tokio::time::sleep(Duration::from_secs(KAFKA_READY_INTERVAL_SECS)).await;
-    }
-
-    anyhow::bail!(
-        "等待 Kafka sink 就绪超时: {}",
         last_error.unwrap_or_else(|| "未知错误".to_string())
     )
 }

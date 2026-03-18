@@ -1,5 +1,7 @@
 #![cfg(feature = "kafka")]
 
+use std::time::Duration;
+
 use anyhow::Result;
 use wp_connectors::kafka::KafkaSinkFactory;
 
@@ -11,7 +13,8 @@ use crate::common::{
     },
 };
 use crate::kafka_common::{
-    create_kafka_performance_config, init_kafka_topic_with_params, wait_for_kafka_ready,
+    create_kafka_performance_config, init_kafka_topic_with_params, query_topic_count,
+    wait_for_kafka_ready,
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -26,11 +29,13 @@ async fn test_kafka_sink_performance() -> Result<()> {
             let params = params.clone();
             async move { init_kafka_topic_with_params(params).await }
         })
+        .with_async_count_fn(|params| async move { query_topic_count(params).await })
         .with_async_wait_ready(|_params| async move { wait_for_kafka_ready().await });
 
     let config = SinkPerformanceConfig::default()
         .with_total_records(1_000_000)
         .with_batch_size(5_000)
+        .with_progress_interval(Duration::from_secs(1))
         .with_task_count(4);
 
     let runtime = SinkPerformanceRuntime::new(docker_tool, vec![sink_info], config);
