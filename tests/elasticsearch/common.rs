@@ -1,6 +1,9 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde_json::{Value, json};
+use tokio::time::sleep;
 use wp_connector_api::ParamMap;
 
 pub const TEST_ES_PROTOCOL: &str = "http";
@@ -57,54 +60,6 @@ async fn probe_elasticsearch_service_ready() -> Result<()> {
 
     Ok(())
 }
-
-async fn probe_elasticsearch_index_ddl() -> Result<()> {
-    let probe_index = "__wp_ready_probe";
-
-    let delete_resp = es_request(reqwest::Method::DELETE, &format!("/{}", probe_index)).await?;
-    if !(delete_resp.status().is_success() || delete_resp.status().as_u16() == 404) {
-        let status = delete_resp.status();
-        let body = delete_resp.text().await.unwrap_or_default();
-        anyhow::bail!(
-            "删除 Elasticsearch 探针索引失败: status={}, body={}",
-            status,
-            body
-        );
-    }
-
-    let create_resp = es_client()
-        .put(format!("{}/{}", es_endpoint(), probe_index))
-        .basic_auth(TEST_ES_USER, Some(TEST_ES_PASSWORD))
-        .json(&json!({
-            "settings": {"number_of_shards": 1, "number_of_replicas": 0}
-        }))
-        .send()
-        .await
-        .context("创建 Elasticsearch 探针索引失败")?;
-    if !create_resp.status().is_success() {
-        let status = create_resp.status();
-        let body = create_resp.text().await.unwrap_or_default();
-        anyhow::bail!(
-            "创建 Elasticsearch 探针索引失败: status={}, body={}",
-            status,
-            body
-        );
-    }
-
-    let cleanup_resp = es_request(reqwest::Method::DELETE, &format!("/{}", probe_index)).await?;
-    if !cleanup_resp.status().is_success() {
-        let status = cleanup_resp.status();
-        let body = cleanup_resp.text().await.unwrap_or_default();
-        anyhow::bail!(
-            "清理 Elasticsearch 探针索引失败: status={}, body={}",
-            status,
-            body
-        );
-    }
-
-    Ok(())
-}
-
 pub async fn wait_for_elasticsearch_ready() -> Result<()> {
     let mut last_error = None;
     let mut stable_successes = 0usize;
@@ -145,8 +100,6 @@ pub async fn wait_for_elasticsearch_ready() -> Result<()> {
 }
 
 pub async fn init_elasticsearch_index() -> Result<()> {
-    wait_for_elasticsearch_ready().await?;
-
     let delete_resp = es_request(reqwest::Method::DELETE, &format!("/{}", TEST_ES_INDEX)).await?;
     if !(delete_resp.status().is_success() || delete_resp.status().as_u16() == 404) {
         let status = delete_resp.status();
@@ -182,6 +135,7 @@ pub async fn init_elasticsearch_index() -> Result<()> {
 }
 
 pub async fn query_index_count() -> Result<i64> {
+    sleep(Duration::from_secs(1)).await;
     let resp = es_request(reqwest::Method::GET, &format!("/{}/_count", TEST_ES_INDEX)).await?;
     let status = resp.status();
     let body = resp.text().await?;
@@ -199,49 +153,4 @@ pub async fn query_index_count() -> Result<i64> {
         .get("count")
         .and_then(Value::as_i64)
         .ok_or_else(|| anyhow::anyhow!("Elasticsearch count 响应缺少 count 字段: {}", body))
-}
-
-pub async fn wait_for_elasticsearch_sink_ready() -> Result<()> {
-    let mut last_error = None;
-    let mut stable_successes = 0usize;
-
-    for attempt in 1..=ELASTICSEARCH_READY_ATTEMPTS {
-        match wait_for_elasticsearch_ready().await {
-            Ok(()) => match probe_elasticsearch_index_ddl().await {
-                Ok(_) => {
-                    stable_successes += 1;
-                    if stable_successes >= ELASTICSEARCH_READY_STABLE_PROBES {
-                        println!(
-                            "✓ Elasticsearch sink 已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
-                            ELASTICSEARCH_READY_STABLE_PROBES, attempt
-                        );
-                        return Ok(());
-                    }
-
-                    println!(
-                        "Elasticsearch sink 探测成功，继续观察稳定性（{}/{})...",
-                        stable_successes, ELASTICSEARCH_READY_STABLE_PROBES
-                    );
-                }
-                Err(err) => {
-                    stable_successes = 0;
-                    last_error = Some(err.to_string());
-                }
-            },
-            Err(err) => {
-                stable_successes = 0;
-                last_error = Some(err.to_string());
-            }
-        }
-
-        tokio::time::sleep(tokio::time::Duration::from_secs(
-            ELASTICSEARCH_READY_INTERVAL_SECS,
-        ))
-        .await;
-    }
-
-    anyhow::bail!(
-        "等待 Elasticsearch sink 就绪超时: {}",
-        last_error.unwrap_or_else(|| "未知错误".to_string())
-    )
 }
