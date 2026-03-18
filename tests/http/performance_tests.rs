@@ -22,7 +22,6 @@ async fn test_http_sink_performance() -> Result<()> {
         .map(|(test_name, params)| {
             SinkInfo::new(HttpSinkFactory, params)
                 .with_test_name(test_name)
-                .with_async_init(|| async { wait_for_http_nginx_ready().await })
                 .with_async_wait_ready(|_params| async { wait_for_http_nginx_ready().await })
         })
         .collect();

@@ -131,8 +131,6 @@ pub async fn wait_for_clickhouse_ready() -> Result<()> {
 }
 
 pub async fn init_clickhouse_database() -> Result<()> {
-    wait_for_clickhouse_ready().await?;
-
     execute_sql(&format!(
         "CREATE DATABASE IF NOT EXISTS {}",
         TEST_CLICKHOUSE_DB
@@ -177,32 +175,28 @@ pub async fn query_table_count() -> Result<i64> {
 }
 
 pub async fn wait_for_clickhouse_sink_ready() -> Result<()> {
+    wait_for_clickhouse_ready().await?;
+
     let mut last_error = None;
     let mut stable_successes = 0usize;
 
     for attempt in 1..=CLICKHOUSE_READY_ATTEMPTS {
-        match wait_for_clickhouse_ready().await {
-            Ok(()) => match probe_clickhouse_table_ddl().await {
-                Ok(_) => {
-                    stable_successes += 1;
-                    if stable_successes >= CLICKHOUSE_READY_STABLE_PROBES {
-                        println!(
-                            "✓ ClickHouse sink 已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
-                            CLICKHOUSE_READY_STABLE_PROBES, attempt
-                        );
-                        return Ok(());
-                    }
-
+        match probe_clickhouse_table_ddl().await {
+            Ok(()) => {
+                stable_successes += 1;
+                if stable_successes >= CLICKHOUSE_READY_STABLE_PROBES {
                     println!(
-                        "ClickHouse sink 探测成功，继续观察稳定性（{}/{})...",
-                        stable_successes, CLICKHOUSE_READY_STABLE_PROBES
+                        "✓ ClickHouse sink 已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
+                        CLICKHOUSE_READY_STABLE_PROBES, attempt
                     );
+                    return Ok(());
                 }
-                Err(err) => {
-                    stable_successes = 0;
-                    last_error = Some(err.to_string());
-                }
-            },
+
+                println!(
+                    "ClickHouse sink 探测成功，继续观察稳定性（{}/{})...",
+                    stable_successes, CLICKHOUSE_READY_STABLE_PROBES
+                );
+            }
             Err(err) => {
                 stable_successes = 0;
                 last_error = Some(err.to_string());

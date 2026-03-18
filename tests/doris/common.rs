@@ -240,7 +240,6 @@ pub async fn wait_for_doris_sink_ready() -> Result<()> {
 
 pub async fn init_doris_database() -> Result<()> {
     println!("初始化 Doris 数据库和表...");
-    wait_for_doris_sink_ready().await?;
 
     let db = create_doris_admin_conn(None).await?;
 

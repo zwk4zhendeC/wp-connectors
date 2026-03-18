@@ -1,5 +1,6 @@
 #![cfg(any(
     feature = "full",
+    feature = "kafka",
     feature = "doris",
     feature = "http",
     feature = "clickhouse",
