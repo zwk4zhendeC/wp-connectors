@@ -1,8 +1,13 @@
 #![cfg(feature = "kafka")]
-// Wrapper test to include tests under tests/kafka/ and shared helpers in tests/common.rs
+
+#[path = "common/mod.rs"]
+mod common;
+
+#[path = "kafka/common.rs"]
+mod kafka_common;
 
 #[path = "kafka/integration_tests.rs"]
 mod integration_tests;
 
-#[path = "common_kafka.rs"]
-mod common;
+#[path = "kafka/performance_tests.rs"]
+mod performance_tests;

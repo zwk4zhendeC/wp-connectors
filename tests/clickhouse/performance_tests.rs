@@ -5,7 +5,7 @@ use wp_connectors::clickhouse::ClickHouseSinkFactory;
 
 use crate::clickhouse_common::{
     create_clickhouse_test_config, init_clickhouse_database, query_table_count,
-    wait_for_clickhouse_sink_ready,
+    wait_for_clickhouse_ready,
 };
 use crate::common::{
     component_tools::DockerComposeTool,
@@ -24,7 +24,7 @@ async fn test_clickhouse_sink_performance() -> Result<()> {
         .with_test_name("baseline")
         .with_async_count_fn(|_params| async { query_table_count().await })
         .with_async_init(|| async { init_clickhouse_database().await })
-        .with_async_wait_ready(|_params| async { wait_for_clickhouse_sink_ready().await });
+        .with_async_wait_ready(|_params| async { wait_for_clickhouse_ready().await });
 
     let config = SinkPerformanceConfig::default()
         .with_batch_size(10_0000)

@@ -25,7 +25,6 @@ async fn test_http_sink_full_integration() -> Result<()> {
             SinkInfo::new(HttpSinkFactory, params)
                 .with_test_name(test_name)
                 .with_async_count_fn(query_http_count)
-                .with_async_init(|| async { wait_for_http_ready().await })
                 .with_async_wait_ready(|_params| async { wait_for_http_ready().await })
         })
         .collect();

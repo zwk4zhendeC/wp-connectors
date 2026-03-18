@@ -131,8 +131,6 @@ pub async fn wait_for_clickhouse_ready() -> Result<()> {
 }
 
 pub async fn init_clickhouse_database() -> Result<()> {
-    wait_for_clickhouse_ready().await?;
-
     execute_sql(&format!(
         "CREATE DATABASE IF NOT EXISTS {}",
         TEST_CLICKHOUSE_DB
@@ -174,49 +172,4 @@ pub async fn query_table_count() -> Result<i64> {
     body.trim()
         .parse::<i64>()
         .with_context(|| format!("解析 ClickHouse count 失败: {}", body.trim()))
-}
-
-pub async fn wait_for_clickhouse_sink_ready() -> Result<()> {
-    let mut last_error = None;
-    let mut stable_successes = 0usize;
-
-    for attempt in 1..=CLICKHOUSE_READY_ATTEMPTS {
-        match wait_for_clickhouse_ready().await {
-            Ok(()) => match probe_clickhouse_table_ddl().await {
-                Ok(_) => {
-                    stable_successes += 1;
-                    if stable_successes >= CLICKHOUSE_READY_STABLE_PROBES {
-                        println!(
-                            "✓ ClickHouse sink 已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
-                            CLICKHOUSE_READY_STABLE_PROBES, attempt
-                        );
-                        return Ok(());
-                    }
-
-                    println!(
-                        "ClickHouse sink 探测成功，继续观察稳定性（{}/{})...",
-                        stable_successes, CLICKHOUSE_READY_STABLE_PROBES
-                    );
-                }
-                Err(err) => {
-                    stable_successes = 0;
-                    last_error = Some(err.to_string());
-                }
-            },
-            Err(err) => {
-                stable_successes = 0;
-                last_error = Some(err.to_string());
-            }
-        }
-
-        tokio::time::sleep(tokio::time::Duration::from_secs(
-            CLICKHOUSE_READY_INTERVAL_SECS,
-        ))
-        .await;
-    }
-
-    anyhow::bail!(
-        "等待 ClickHouse sink 就绪超时: {}",
-        last_error.unwrap_or_else(|| "未知错误".to_string())
-    )
 }
