@@ -110,7 +110,7 @@ impl DockerComposeTool {
     pub async fn down(&self) -> Result<()> {
         println!("==> 停止服务: {}", self.compose_file);
         let output = Command::new("docker")
-            .args(["compose", "-f", &self.compose_file, "down"])
+            .args(["compose", "-f", &self.compose_file, "down", "-v"])
             .output()
             .await
             .context("执行 docker compose down 失败")?;
