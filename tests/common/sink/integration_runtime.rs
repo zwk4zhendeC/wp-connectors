@@ -28,8 +28,7 @@ impl<T: ComponentTool + Sync, F: SinkFactory> SinkIntegrationRuntime<T, F> {
 
     /// 运行集成测试
     pub async fn run(&self) -> Result<()> {
-        // 1. 启动 Docker Compose
-        println!("启动 Docker Compose...");
+        println!("启动组件...");
         self.component_tool.setup_and_up().await?;
 
         // 2. 遍历每个 SinkInfo
@@ -40,8 +39,8 @@ impl<T: ComponentTool + Sync, F: SinkFactory> SinkIntegrationRuntime<T, F> {
 
             // 2.1 执行异步初始化
             println!("执行初始化...");
-            sink_info.init().await?;
             sink_info.wait_ready().await?;
+            sink_info.init().await?;
 
             // 2.2 构建 SinkSpec
             let spec = SinkSpec {

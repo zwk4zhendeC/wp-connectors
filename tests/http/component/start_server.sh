@@ -15,5 +15,5 @@ if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
 fi
 
-python3 examples/http/test_server.py >"$LOG_FILE" 2>&1 &
+python3 tests/http/component/test_server.py 18080 >"$LOG_FILE" 2>&1 &
 echo $! >"$PID_FILE"

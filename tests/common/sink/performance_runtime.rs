@@ -3,16 +3,18 @@
 use super::sink_info::SinkInfo;
 use crate::common::component_tools::ComponentTool;
 use anyhow::Result;
+use rand::RngExt;
 use std::path::PathBuf;
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering},
+    atomic::{AtomicI64, AtomicUsize, Ordering},
 };
 use std::time::Instant;
 use sysinfo::{
     MINIMUM_CPU_UPDATE_INTERVAL, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System,
     get_current_pid,
 };
+use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tokio::time::{Duration, sleep};
 use wp_connector_api::{SinkBuildCtx, SinkFactory, SinkSpec};
@@ -20,10 +22,14 @@ use wp_model_core::model::{DataField, DataRecord};
 
 static NEXT_PERF_RECORD_ID: AtomicI64 = AtomicI64::new(1);
 
-const DEFAULT_TOTAL_RECORDS: usize = 2_000_000;
+const DEFAULT_TOTAL_RECORDS: usize = 3_000_000;
 const DEFAULT_TASK_COUNT: usize = 4;
 const DEFAULT_BATCH_SIZE: usize = 10_000;
 const DEFAULT_PROGRESS_INTERVAL_SECS: u64 = 5;
+
+thread_local! {
+    static RNG: std::cell::RefCell<rand::rngs::ThreadRng> = std::cell::RefCell::new(rand::rng());
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct SinkPerformanceConfig {
@@ -119,10 +125,10 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
                 self.config.batch_size,
                 self.config.progress_interval.as_secs()
             );
+            sink_info.wait_ready().await?;
 
             println!("执行初始化...");
             sink_info.init().await?;
-            sink_info.wait_ready().await?;
 
             self.run_single_sink(idx, &display_name, sink_info).await?;
         }
@@ -139,8 +145,14 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
         sink_info: &SinkInfo<F>,
     ) -> Result<()> {
         let kind = sink_info.factory().kind();
-        let count_before = sink_info.count().await?;
-        println!("发送前数量: {}", count_before);
+        let count_before = if sink_info.has_count_fn() {
+            let count = sink_info.count().await?;
+            println!("发送前数量: {}", count);
+            Some(count)
+        } else {
+            println!("未配置 count_fn，跳过发送前数量统计与最终数量校验");
+            None
+        };
 
         let base_spec = SinkSpec {
             group: "performance_test".to_string(),
@@ -151,14 +163,10 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
             filter: None,
         };
 
-        let counters = Arc::new(PerformanceCounters::default());
-        let stop_monitor = Arc::new(AtomicBool::new(false));
-        let start = Instant::now();
-        let monitor = self.spawn_monitor(counters.clone(), stop_monitor.clone(), start);
         let records_per_task = self.config.total_records / self.config.task_count;
         let remainder = self.config.total_records % self.config.task_count;
 
-        let mut handles = Vec::with_capacity(self.config.task_count);
+        let mut task_specs = Vec::with_capacity(self.config.task_count);
         let ctx = SinkBuildCtx::new(PathBuf::from("."));
         for task_id in 0..self.config.task_count {
             let assigned = records_per_task + usize::from(task_id < remainder);
@@ -167,7 +175,17 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
                 connector_id: format!("{}_task_{}", base_spec.connector_id, task_id),
                 ..base_spec.clone()
             };
-            let mut sink = sink_info.factory().build(&spec, &ctx).await?;
+            let sink = sink_info.factory().build(&spec, &ctx).await?;
+            task_specs.push((task_id, assigned, sink));
+        }
+
+        let counters = Arc::new(PerformanceCounters::default());
+        let stop_monitor = Arc::new(Notify::new());
+        let start = Instant::now();
+        let monitor = self.spawn_monitor(counters.clone(), stop_monitor.clone(), start);
+
+        let mut handles = Vec::with_capacity(self.config.task_count);
+        for (task_id, assigned, mut sink) in task_specs {
             let counters = counters.clone();
             let batch_size = self.config.batch_size;
             handles.push(tokio::spawn(async move {
@@ -216,7 +234,7 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
             }
         }
 
-        stop_monitor.store(true, Ordering::SeqCst);
+        stop_monitor.notify_one();
         let monitor_summary = match monitor.await {
             Ok(summary) => summary,
             Err(err) => {
@@ -247,16 +265,18 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
         println!("峰值内存: {}", format_memory(monitor_summary.peak_memory));
         println!("平均内存: {}", format_memory(monitor_summary.avg_memory));
 
-        let count_after = sink_info.count().await?;
-        let diff = count_after - count_before;
-        println!("发送后数量: {}", count_after);
-        println!("数量校验新增: {}", diff);
-        if diff < sent_records as i64 {
-            anyhow::bail!(
-                "性能测试数量校验失败，预期至少新增 {} 条，实际新增 {} 条",
-                sent_records,
-                diff
-            );
+        if let Some(count_before) = count_before {
+            let count_after = sink_info.count().await?;
+            let diff = count_after - count_before;
+            println!("发送后数量: {}", count_after);
+            println!("数量校验新增: {}", diff);
+            if diff < sent_records as i64 {
+                anyhow::bail!(
+                    "性能测试数量校验失败，预期至少新增 {} 条，实际新增 {} 条",
+                    sent_records,
+                    diff
+                );
+            }
         }
 
         if task_failures > 0 {
@@ -269,7 +289,7 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
     fn spawn_monitor(
         &self,
         counters: Arc<PerformanceCounters>,
-        stop: Arc<AtomicBool>,
+        stop: Arc<Notify>,
         start: Instant,
     ) -> JoinHandle<MonitorSummary> {
         let interval = self.config.progress_interval;
@@ -296,8 +316,14 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
             let mut memory_sum = 0u128;
             let mut samples = 0u64;
 
-            while !stop.load(Ordering::SeqCst) {
-                sleep(interval).await;
+            loop {
+                tokio::select! {
+                    _ = sleep(interval) => {}
+                    _ = stop.notified() => {
+                        break;
+                    }
+                }
+
                 system.refresh_processes_specifics(
                     ProcessesToUpdate::Some(&[pid]),
                     false,
@@ -385,7 +411,8 @@ fn format_memory(bytes: u64) -> String {
 
 fn create_test_records(count: usize) -> Vec<Arc<DataRecord>> {
     let start_id = NEXT_PERF_RECORD_ID.fetch_add(count as i64, Ordering::SeqCst);
-
+    const FIXED_TIMESTAMP: &str = "2024-03-02 10:00:00";
+    let size: i64 = RNG.with(|rng| rng.borrow_mut().random());
     (0..count)
         .map(|i| {
             let id = start_id + i as i64;
@@ -396,16 +423,13 @@ fn create_test_records(count: usize) -> Vec<Arc<DataRecord>> {
                 format!("performance_test_{}", id),
             ));
             record.append(DataField::from_chars("sip", "192.168.1.100"));
-            record.append(DataField::from_chars(
-                "timestamp",
-                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-            ));
+            record.append(DataField::from_chars("timestamp", FIXED_TIMESTAMP));
             record.append(DataField::from_chars(
                 "http/request",
                 format!("GET /api/perf/{} HTTP/1.1", id),
             ));
             record.append(DataField::from_digit("status", 200));
-            record.append(DataField::from_digit("size", 1024 + i as i64));
+            record.append(DataField::from_digit("size", size));
             record.append(DataField::from_chars("referer", format!("perf-{:06}", id)));
             record.append(DataField::from_chars(
                 "http/agent",
