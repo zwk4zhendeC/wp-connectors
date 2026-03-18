@@ -65,7 +65,11 @@ async fn probe_elasticsearch_index_ddl() -> Result<()> {
     if !(delete_resp.status().is_success() || delete_resp.status().as_u16() == 404) {
         let status = delete_resp.status();
         let body = delete_resp.text().await.unwrap_or_default();
-        anyhow::bail!("删除 Elasticsearch 探针索引失败: status={}, body={}", status, body);
+        anyhow::bail!(
+            "删除 Elasticsearch 探针索引失败: status={}, body={}",
+            status,
+            body
+        );
     }
 
     let create_resp = es_client()
@@ -80,14 +84,22 @@ async fn probe_elasticsearch_index_ddl() -> Result<()> {
     if !create_resp.status().is_success() {
         let status = create_resp.status();
         let body = create_resp.text().await.unwrap_or_default();
-        anyhow::bail!("创建 Elasticsearch 探针索引失败: status={}, body={}", status, body);
+        anyhow::bail!(
+            "创建 Elasticsearch 探针索引失败: status={}, body={}",
+            status,
+            body
+        );
     }
 
     let cleanup_resp = es_request(reqwest::Method::DELETE, &format!("/{}", probe_index)).await?;
     if !cleanup_resp.status().is_success() {
         let status = cleanup_resp.status();
         let body = cleanup_resp.text().await.unwrap_or_default();
-        anyhow::bail!("清理 Elasticsearch 探针索引失败: status={}, body={}", status, body);
+        anyhow::bail!(
+            "清理 Elasticsearch 探针索引失败: status={}, body={}",
+            status,
+            body
+        );
     }
 
     Ok(())
@@ -120,8 +132,10 @@ pub async fn wait_for_elasticsearch_ready() -> Result<()> {
             }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(ELASTICSEARCH_READY_INTERVAL_SECS))
-            .await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(
+            ELASTICSEARCH_READY_INTERVAL_SECS,
+        ))
+        .await;
     }
 
     anyhow::bail!(
@@ -220,8 +234,10 @@ pub async fn wait_for_elasticsearch_sink_ready() -> Result<()> {
             }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(ELASTICSEARCH_READY_INTERVAL_SECS))
-            .await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(
+            ELASTICSEARCH_READY_INTERVAL_SECS,
+        ))
+        .await;
     }
 
     anyhow::bail!(

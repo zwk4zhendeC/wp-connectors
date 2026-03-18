@@ -118,7 +118,10 @@ pub async fn wait_for_clickhouse_ready() -> Result<()> {
             }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(CLICKHOUSE_READY_INTERVAL_SECS)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(
+            CLICKHOUSE_READY_INTERVAL_SECS,
+        ))
+        .await;
     }
 
     anyhow::bail!(
@@ -206,7 +209,10 @@ pub async fn wait_for_clickhouse_sink_ready() -> Result<()> {
             }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(CLICKHOUSE_READY_INTERVAL_SECS)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(
+            CLICKHOUSE_READY_INTERVAL_SECS,
+        ))
+        .await;
     }
 
     anyhow::bail!(

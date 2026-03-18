@@ -140,7 +140,11 @@ pub fn create_http_performance_scenarios() -> Vec<(String, ParamMap)> {
     scenarios
 }
 
-async fn wait_for_http_endpoint_ready(base_url: &str, path: &str, service_name: &str) -> Result<()> {
+async fn wait_for_http_endpoint_ready(
+    base_url: &str,
+    path: &str,
+    service_name: &str,
+) -> Result<()> {
     let client = reqwest::Client::new();
     let mut last_error = None;
     let mut stable_successes = 0usize;
