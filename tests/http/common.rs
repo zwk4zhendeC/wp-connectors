@@ -5,6 +5,9 @@ use wp_connector_api::ParamMap;
 pub const TEST_HTTP_SERVER: &str = "http://127.0.0.1:18080";
 pub const TEST_HTTP_NGINX_SERVER: &str = "http://127.0.0.1:8080";
 pub const ALL_HTTP_FORMATS: [&str; 6] = ["json", "ndjson", "csv", "kv", "raw", "proto-text"];
+const HTTP_READY_ATTEMPTS: usize = 15;
+const HTTP_READY_INTERVAL_SECS: u64 = 1;
+const HTTP_READY_STABLE_PROBES: usize = 3;
 
 pub fn create_http_test_config(
     path: &str,
@@ -137,31 +140,50 @@ pub fn create_http_performance_scenarios() -> Vec<(String, ParamMap)> {
     scenarios
 }
 
-pub async fn wait_for_http_ready() -> Result<()> {
+async fn wait_for_http_endpoint_ready(base_url: &str, path: &str, service_name: &str) -> Result<()> {
     let client = reqwest::Client::new();
     let mut last_error = None;
+    let mut stable_successes = 0usize;
 
-    for attempt in 1..=10 {
-        match client
-            .get(format!("{}/health", TEST_HTTP_SERVER))
-            .send()
-            .await
-        {
+    for attempt in 1..=HTTP_READY_ATTEMPTS {
+        match client.get(format!("{}{}", base_url, path)).send().await {
             Ok(resp) if resp.status().is_success() => {
-                println!("✓ HTTP 测试服务已就绪，第 {} 次探测成功", attempt);
-                return Ok(());
+                stable_successes += 1;
+                if stable_successes >= HTTP_READY_STABLE_PROBES {
+                    println!(
+                        "✓ {}已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
+                        service_name, HTTP_READY_STABLE_PROBES, attempt
+                    );
+                    return Ok(());
+                }
+
+                println!(
+                    "{}探测成功，继续观察稳定性（{}/{})...",
+                    service_name, stable_successes, HTTP_READY_STABLE_PROBES
+                );
             }
-            Ok(resp) => last_error = Some(format!("unexpected status: {}", resp.status())),
-            Err(err) => last_error = Some(err.to_string()),
+            Ok(resp) => {
+                stable_successes = 0;
+                last_error = Some(format!("unexpected status: {}", resp.status()));
+            }
+            Err(err) => {
+                stable_successes = 0;
+                last_error = Some(err.to_string());
+            }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(HTTP_READY_INTERVAL_SECS)).await;
     }
 
     anyhow::bail!(
-        "等待 HTTP 测试服务就绪超时: {}",
+        "等待{}超时: {}",
+        service_name,
         last_error.unwrap_or_else(|| "未知错误".to_string())
     )
+}
+
+pub async fn wait_for_http_ready() -> Result<()> {
+    wait_for_http_endpoint_ready(TEST_HTTP_SERVER, "/health", "HTTP 测试服务").await
 }
 
 pub async fn query_http_count(params: ParamMap) -> Result<i64> {
@@ -183,30 +205,7 @@ pub async fn query_http_count(params: ParamMap) -> Result<i64> {
 }
 
 pub async fn wait_for_http_nginx_ready() -> Result<()> {
-    let client = reqwest::Client::new();
-    let mut last_error = None;
-
-    for attempt in 1..=15 {
-        match client
-            .get(format!("{}/nginx_status", TEST_HTTP_NGINX_SERVER))
-            .send()
-            .await
-        {
-            Ok(resp) if resp.status().is_success() => {
-                println!("✓ HTTP nginx 服务已就绪，第 {} 次探测成功", attempt);
-                return Ok(());
-            }
-            Ok(resp) => last_error = Some(format!("unexpected status: {}", resp.status())),
-            Err(err) => last_error = Some(err.to_string()),
-        }
-
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    }
-
-    anyhow::bail!(
-        "等待 HTTP nginx 服务就绪超时: {}",
-        last_error.unwrap_or_else(|| "未知错误".to_string())
-    )
+    wait_for_http_endpoint_ready(TEST_HTTP_NGINX_SERVER, "/nginx_status", "HTTP nginx 服务").await
 }
 
 #[allow(dead_code)]

@@ -8,6 +8,9 @@ pub const TEST_CLICKHOUSE_DB: &str = "test_db";
 pub const TEST_CLICKHOUSE_TABLE: &str = "wp_nginx";
 pub const TEST_CLICKHOUSE_USER: &str = "default";
 pub const TEST_CLICKHOUSE_PASSWORD: &str = "default";
+const CLICKHOUSE_READY_ATTEMPTS: usize = 20;
+const CLICKHOUSE_READY_INTERVAL_SECS: u64 = 2;
+const CLICKHOUSE_READY_STABLE_PROBES: usize = 3;
 
 fn clickhouse_client() -> Client {
     Client::new()
@@ -43,35 +46,79 @@ async fn execute_sql(sql: &str) -> Result<String> {
     Ok(body)
 }
 
+async fn probe_clickhouse_service_ready() -> Result<()> {
+    let resp = clickhouse_client()
+        .get(format!("{}/ping", TEST_CLICKHOUSE_ENDPOINT))
+        .basic_auth(TEST_CLICKHOUSE_USER, Some(TEST_CLICKHOUSE_PASSWORD))
+        .send()
+        .await
+        .context("请求 ClickHouse /ping 失败")?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() || body.trim() != "Ok." {
+        anyhow::bail!("status={}, body={}", status, body);
+    }
+
+    execute_sql("SELECT 1").await?;
+    Ok(())
+}
+
+async fn probe_clickhouse_table_ddl() -> Result<()> {
+    let probe_table = "__wp_ready_probe";
+
+    execute_sql(&format!(
+        "CREATE DATABASE IF NOT EXISTS {}",
+        TEST_CLICKHOUSE_DB
+    ))
+    .await?;
+    execute_sql(&format!(
+        "DROP TABLE IF EXISTS {}.{}",
+        TEST_CLICKHOUSE_DB, probe_table
+    ))
+    .await?;
+    execute_sql(&format!(
+        "CREATE TABLE {}.{} (id Int64) ENGINE = MergeTree ORDER BY id",
+        TEST_CLICKHOUSE_DB, probe_table
+    ))
+    .await?;
+    execute_sql(&format!(
+        "DROP TABLE IF EXISTS {}.{}",
+        TEST_CLICKHOUSE_DB, probe_table
+    ))
+    .await?;
+
+    Ok(())
+}
+
 pub async fn wait_for_clickhouse_ready() -> Result<()> {
     let mut last_error = None;
+    let mut stable_successes = 0usize;
 
-    for attempt in 1..=30 {
-        match clickhouse_client()
-            .get(format!("{}/ping", TEST_CLICKHOUSE_ENDPOINT))
-            .basic_auth(TEST_CLICKHOUSE_USER, Some(TEST_CLICKHOUSE_PASSWORD))
-            .send()
-            .await
-        {
-            Ok(resp) => {
-                let status = resp.status();
-                let body = resp.text().await.unwrap_or_default();
-                if status.is_success() && body.trim() == "Ok." {
-                    match execute_sql("SELECT 1").await {
-                        Ok(_) => {
-                            println!("✓ ClickHouse 已就绪，第 {} 次探测成功", attempt);
-                            return Ok(());
-                        }
-                        Err(err) => last_error = Some(err.to_string()),
-                    }
-                } else {
-                    last_error = Some(format!("status={}, body={}", status, body));
+    for attempt in 1..=CLICKHOUSE_READY_ATTEMPTS {
+        match probe_clickhouse_service_ready().await {
+            Ok(()) => {
+                stable_successes += 1;
+                if stable_successes >= CLICKHOUSE_READY_STABLE_PROBES {
+                    println!(
+                        "✓ ClickHouse 服务已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
+                        CLICKHOUSE_READY_STABLE_PROBES, attempt
+                    );
+                    return Ok(());
                 }
+
+                println!(
+                    "ClickHouse 服务探测成功，继续观察稳定性（{}/{})...",
+                    stable_successes, CLICKHOUSE_READY_STABLE_PROBES
+                );
             }
-            Err(err) => last_error = Some(err.to_string()),
+            Err(err) => {
+                stable_successes = 0;
+                last_error = Some(err.to_string());
+            }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(CLICKHOUSE_READY_INTERVAL_SECS)).await;
     }
 
     anyhow::bail!(
@@ -128,33 +175,38 @@ pub async fn query_table_count() -> Result<i64> {
 
 pub async fn wait_for_clickhouse_sink_ready() -> Result<()> {
     let mut last_error = None;
-    let mut consecutive_successes = 0;
+    let mut stable_successes = 0usize;
 
-    for _attempt in 1..=15 {
+    for attempt in 1..=CLICKHOUSE_READY_ATTEMPTS {
         match wait_for_clickhouse_ready().await {
-            Ok(()) => match query_table_count().await {
+            Ok(()) => match probe_clickhouse_table_ddl().await {
                 Ok(_) => {
-                    consecutive_successes += 1;
-                    if consecutive_successes >= 3 {
+                    stable_successes += 1;
+                    if stable_successes >= CLICKHOUSE_READY_STABLE_PROBES {
                         println!(
-                            "✓ ClickHouse sink 已连续{}次探测成功",
-                            consecutive_successes
+                            "✓ ClickHouse sink 已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
+                            CLICKHOUSE_READY_STABLE_PROBES, attempt
                         );
                         return Ok(());
                     }
+
+                    println!(
+                        "ClickHouse sink 探测成功，继续观察稳定性（{}/{})...",
+                        stable_successes, CLICKHOUSE_READY_STABLE_PROBES
+                    );
                 }
                 Err(err) => {
-                    consecutive_successes = 0;
+                    stable_successes = 0;
                     last_error = Some(err.to_string());
                 }
             },
             Err(err) => {
-                consecutive_successes = 0;
+                stable_successes = 0;
                 last_error = Some(err.to_string());
             }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(CLICKHOUSE_READY_INTERVAL_SECS)).await;
     }
 
     anyhow::bail!(

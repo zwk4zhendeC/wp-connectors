@@ -23,8 +23,8 @@ async fn test_doris_sink_full_integration() -> Result<()> {
     let sink_info = SinkInfo::new(DorisSinkFactory, create_doris_test_config())
         .with_test_name("basic")
         .with_async_count_fn(|_params| async { query_table_count().await })
-        .with_async_init(|| async { init_doris_database().await })
-        .with_async_wait_ready(|_params| async { wait_for_doris_sink_ready().await });
+        .with_async_wait_ready(|_params| async { wait_for_doris_sink_ready().await })
+        .with_async_init(|| async { init_doris_database().await });
 
     // 3. 创建运行时并执行测试
     let runtime = SinkIntegrationRuntime::new(docker_tool, vec![sink_info]);

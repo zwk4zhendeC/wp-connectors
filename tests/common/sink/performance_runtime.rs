@@ -125,10 +125,10 @@ impl<T: ComponentTool + Sync, F: SinkFactory + Sync> SinkPerformanceRuntime<T, F
                 self.config.batch_size,
                 self.config.progress_interval.as_secs()
             );
+            sink_info.wait_ready().await?;
 
             println!("执行初始化...");
             sink_info.init().await?;
-            sink_info.wait_ready().await?;
 
             self.run_single_sink(idx, &display_name, sink_info).await?;
         }

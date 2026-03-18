@@ -27,7 +27,7 @@ async fn test_doris_sink_performance() -> Result<()> {
     let config = SinkPerformanceConfig::default()
         .with_total_records(1000_0000)
         //批量大小
-        .with_batch_size(10_0000)
+        .with_batch_size(1_0000)
         //并行度
         .with_task_count(4);
     let runtime = SinkPerformanceRuntime::new(docker_tool, vec![sink_info], config);

@@ -39,8 +39,8 @@ impl<T: ComponentTool + Sync, F: SinkFactory> SinkIntegrationRuntime<T, F> {
 
             // 2.1 执行异步初始化
             println!("执行初始化...");
-            sink_info.init().await?;
             sink_info.wait_ready().await?;
+            sink_info.init().await?;
 
             // 2.2 构建 SinkSpec
             let spec = SinkSpec {

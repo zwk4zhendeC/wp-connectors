@@ -155,6 +155,37 @@ async fn ensure_doris_cluster_ready(pool: &sqlx::MySqlPool) -> Result<()> {
     Ok(())
 }
 
+async fn probe_doris_table_ddl() -> Result<()> {
+    let db = create_doris_admin_conn(None).await?;
+    let probe_table = "__wp_ready_probe";
+
+    db.execute_unprepared(&format!("CREATE DATABASE IF NOT EXISTS {}", TEST_DORIS_DB))
+        .await?;
+    db.execute_unprepared(&format!(
+        "DROP TABLE IF EXISTS {}.{}",
+        TEST_DORIS_DB, probe_table
+    ))
+    .await?;
+    db.execute_unprepared(&format!(
+        r#"CREATE TABLE {}.{} (
+            id BIGINT
+        )
+        ENGINE=OLAP
+        DUPLICATE KEY(id)
+        DISTRIBUTED BY HASH(id) BUCKETS 1
+        PROPERTIES ("replication_num" = "1")"#,
+        TEST_DORIS_DB, probe_table
+    ))
+    .await?;
+    db.execute_unprepared(&format!(
+        "DROP TABLE IF EXISTS {}.{}",
+        TEST_DORIS_DB, probe_table
+    ))
+    .await?;
+
+    Ok(())
+}
+
 pub async fn wait_for_doris_sink_ready() -> Result<()> {
     let mut last_error = None;
     let mut stable_successes = 0usize;
@@ -164,7 +195,7 @@ pub async fn wait_for_doris_sink_ready() -> Result<()> {
             Ok(pool) => {
                 let ready = async {
                     ensure_doris_cluster_ready(&pool).await?;
-                    query_table_count().await?;
+                    probe_doris_table_ddl().await?;
                     Ok::<(), anyhow::Error>(())
                 }
                 .await;
@@ -175,14 +206,14 @@ pub async fn wait_for_doris_sink_ready() -> Result<()> {
                         stable_successes += 1;
                         if stable_successes >= DORIS_READY_STABLE_PROBES {
                             println!(
-                                "✓ Doris fe 已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
+                                "✓ Doris 集群已稳定就绪，连续 {} 次探测成功（第 {} 次完成）",
                                 DORIS_READY_STABLE_PROBES, attempt
                             );
                             return Ok(());
                         }
 
                         println!(
-                            "Doris fe 探测成功，继续观察稳定性（{}/{})...",
+                            "Doris 集群探测成功，继续观察稳定性（{}/{})...",
                             stable_successes, DORIS_READY_STABLE_PROBES
                         );
                     }
@@ -207,36 +238,9 @@ pub async fn wait_for_doris_sink_ready() -> Result<()> {
     )
 }
 
-pub async fn wait_for_doris_ready() -> Result<()> {
-    let mut last_error = None;
-    for attempt in 1..=DORIS_READY_ATTEMPTS {
-        match create_doris_pool(None).await {
-            Ok(pool) => {
-                let ready = ensure_doris_cluster_ready(&pool).await;
-
-                pool.close().await;
-                match ready {
-                    Ok(()) => {
-                        println!("✓ Doris FE/BE 已就绪，第 {} 次探测成功", attempt);
-                        return Ok(());
-                    }
-                    Err(err) => last_error = Some(err.to_string()),
-                }
-            }
-            Err(err) => last_error = Some(err.to_string()),
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(DORIS_READY_INTERVAL_SECS)).await;
-    }
-
-    anyhow::bail!(
-        "等待 Doris FE/BE 就绪超时: {}",
-        last_error.unwrap_or_else(|| "未知错误".to_string())
-    )
-}
-
 pub async fn init_doris_database() -> Result<()> {
     println!("初始化 Doris 数据库和表...");
-    wait_for_doris_ready().await?;
+    wait_for_doris_sink_ready().await?;
 
     let db = create_doris_admin_conn(None).await?;
 
@@ -284,7 +288,7 @@ pub async fn init_doris_database() -> Result<()> {
                     return Ok(());
                 }
                 last_error = Some(err_msg);
-                println!("fe未就绪，第 {} 次重试...", attempt);
+                println!("Doris 集群未就绪，第 {} 次重试...", attempt);
                 tokio::time::sleep(tokio::time::Duration::from_secs(DORIS_READY_INTERVAL_SECS))
                     .await;
             }
