@@ -122,7 +122,6 @@ pub async fn wait_for_mysql_ready() -> Result<()> {
     )
 }
 
-
 pub async fn init_mysql_database() -> Result<()> {
     execute_mysql(
         None,
