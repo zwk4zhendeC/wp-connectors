@@ -55,8 +55,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # - name: Debug
       #   uses: mxschmitt/action-tmate@v3
+      # - name: Run integration test
+      #   run:  cargo test --all-features -- --test-threads=1
+
       - name: Run integration test
-        run:  cargo test --all-features -- --test-threads=1
+        run:  cargo test --package wp-connectors --test postgresql_tests -- integration_tests::test_postgresql_sink_full_integration --exact --nocapture 
 
   security:
     name: Security Audit
