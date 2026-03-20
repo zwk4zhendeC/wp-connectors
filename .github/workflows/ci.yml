@@ -55,11 +55,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # - name: Debug
       #   uses: mxschmitt/action-tmate@v3
-      # - name: Run integration test
-      #   run:  cargo test --all-features -- --test-threads=1
-
       - name: Run integration test
-        run:  cargo test --package wp-connectors --test victorialogs_tests -- integration_tests::test_victorialogs_sink_full_integration --exact --nocapture
+        run:  cargo test --all-features -- --test-threads=1
 
   security:
     name: Security Audit
