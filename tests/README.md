@@ -202,12 +202,13 @@ let tool = ShellScriptTool::new_with_options(
 
 ## 当前示例
 
-目前这套框架已经提供了三个示例：
+目前这套框架已经提供了多个示例：
 
 - Doris 的集成测试和性能测试
 - ClickHouse 的集成测试和性能测试
 - Elasticsearch 的集成测试和性能测试
 - HTTP sink 的集成测试和性能测试
+- MySQL sink 的集成测试和性能测试
 
 说明：
 
@@ -235,6 +236,12 @@ cargo test --package wp-connectors --test clickhouse_tests --features clickhouse
 
 # ClickHouse 性能测试
 cargo test --package wp-connectors --test clickhouse_tests --features clickhouse performance_tests::test_clickhouse_sink_performance -- --exact --nocapture --ignored
+
+# MySQL 集成测试
+cargo test --package wp-connectors --test mysql_tests --features mysql integration_tests::test_mysql_sink_full_integration -- --exact --nocapture
+
+# MySQL 性能测试
+cargo test --package wp-connectors --test mysql_tests --features mysql performance_tests::test_mysql_sink_performance -- --exact --nocapture --ignored
 
 # Elasticsearch 集成测试
 cargo test --package wp-connectors --test elasticsearch_tests --features elasticsearch integration_tests::test_elasticsearch_sink_full_integration -- --exact --nocapture
