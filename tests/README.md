@@ -81,7 +81,7 @@ let sink_info = SinkInfo::new(
     .with_test_name("basic")
     .with_async_count_fn(|_params| async { query_table_count().await })
     .with_async_init(|| async { init_doris_database().await })
-    .with_async_wait_ready(|_params| async { wait_for_doris_sink_ready().await });
+    .with_async_wait_ready(|_params| async { wait_for_doris_ready().await });
 
 let runtime = SinkIntegrationRuntime::new(component_tool, vec![sink_info]);
 runtime.run().await?;
@@ -123,7 +123,7 @@ let sink_info = SinkInfo::new(
     .with_test_name("baseline")
     .with_async_count_fn(|_params| async { query_table_count().await })
     .with_async_init(|| async { init_doris_database().await })
-    .with_async_wait_ready(|_params| async { wait_for_doris_sink_ready().await });
+    .with_async_wait_ready(|_params| async { wait_for_doris_ready().await });
 
 let config = SinkPerformanceConfig::new()
     .with_total_records(2_000_000)
@@ -207,6 +207,7 @@ let tool = ShellScriptTool::new_with_options(
 - Doris 的集成测试和性能测试
 - ClickHouse 的集成测试和性能测试
 - Elasticsearch 的集成测试和性能测试
+- PostgreSQL 的集成测试和性能测试
 - HTTP sink 的集成测试和性能测试
 - MySQL sink 的集成测试和性能测试
 
@@ -248,4 +249,10 @@ cargo test --package wp-connectors --test elasticsearch_tests --features elastic
 
 # Elasticsearch 性能测试
 cargo test --package wp-connectors --test elasticsearch_tests --features elasticsearch performance_tests::test_elasticsearch_sink_performance -- --exact --nocapture --ignored
+
+# PostgreSQL 集成测试
+cargo test --package wp-connectors --test postgresql_tests --features postgres integration_tests::test_postgresql_sink_full_integration -- --exact --nocapture
+
+# PostgreSQL 性能测试
+cargo test --package wp-connectors --test postgresql_tests --features postgres performance_tests::test_postgresql_sink_performance -- --exact --nocapture --ignored
 ```
