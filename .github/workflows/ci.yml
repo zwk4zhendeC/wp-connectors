@@ -59,7 +59,7 @@ jobs:
       #   run:  cargo test --all-features -- --test-threads=1
 
       - name: Run integration test
-        run:  cargo test --package wp-connectors --test postgresql_tests -- integration_tests::test_postgresql_sink_full_integration --exact --nocapture 
+        run:  cargo test --package wp-connectors --test victorialogs_tests -- integration_tests::test_victorialogs_sink_full_integration --exact --nocapture
 
   security:
     name: Security Audit
