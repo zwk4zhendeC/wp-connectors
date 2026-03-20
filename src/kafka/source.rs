@@ -8,6 +8,7 @@ use rdkafka_wrap::types::RDKafkaErrorCode;
 use rdkafka_wrap::{ClientConfig, KWConsumer, KWConsumerConf, Message};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use wp_model_core::event_id::next_wp_event_id;
 use wp_model_core::raw::RawData;
 
 use crate::WP_SRC_VAL;
@@ -21,7 +22,6 @@ pub struct KafkaSource {
     key: String,
     tags: Tags,
     consumer: KWConsumer,
-    event_seq: u64,
 }
 
 impl KafkaSource {
@@ -57,7 +57,6 @@ impl KafkaSource {
             key,
             consumer,
             tags,
-            event_seq: 0,
         })
     }
 
@@ -69,10 +68,8 @@ impl KafkaSource {
                 let payload = Bytes::copy_from_slice(msg.payload().unwrap_or(&[]));
                 let mut stags = self.tags.clone();
                 stags.set(WP_SRC_VAL, msg.topic().to_string());
-                self.event_seq = self.event_seq.wrapping_add(1);
-                let event_id = self.event_seq;
                 vec![SourceEvent::new(
-                    event_id,
+                    next_wp_event_id(),
                     self.key.clone(),
                     RawData::Bytes(payload),
                     stags.into(),
