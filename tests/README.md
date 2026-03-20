@@ -208,6 +208,7 @@ let tool = ShellScriptTool::new_with_options(
 - ClickHouse 的集成测试和性能测试
 - Elasticsearch 的集成测试和性能测试
 - PostgreSQL 的集成测试和性能测试
+- VictoriaLogs 的集成测试和性能测试
 - HTTP sink 的集成测试和性能测试
 
 说明：
@@ -248,4 +249,10 @@ cargo test --package wp-connectors --test postgresql_tests --features postgres i
 
 # PostgreSQL 性能测试
 cargo test --package wp-connectors --test postgresql_tests --features postgres performance_tests::test_postgresql_sink_performance -- --exact --nocapture --ignored
+
+# VictoriaLogs 集成测试
+cargo test --package wp-connectors --test victorialogs_tests --features victorialogs integration_tests::test_victorialogs_sink_full_integration -- --exact --nocapture
+
+# VictoriaLogs 性能测试
+cargo test --package wp-connectors --test victorialogs_tests --features victorialogs performance_tests::test_victorialogs_sink_performance -- --exact --nocapture --ignored
 ```
