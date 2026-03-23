@@ -128,7 +128,7 @@ impl<T: ComponentTool + Sync, F: SinkFactory> SinkIntegrationRuntime<T, F> {
 
         // 3. 清理
         println!("\n清理环境...");
-        // self.component_tool.down().await?;
+        self.component_tool.down().await?;
 
         Ok(())
     }
