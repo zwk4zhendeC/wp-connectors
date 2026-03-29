@@ -1,0 +1,10 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres-sink-test
+    environment:
+      POSTGRES_USER: "root"
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: "default"
+    ports:
+      - "5432:5432"
