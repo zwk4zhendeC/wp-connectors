@@ -23,7 +23,7 @@ wp-conf-base = "0.2"
 wp-data-fmt = "0.2"
 
 wp-schema = { git = "https://github.com/wp-labs/wp-schema.git", tag= "v0.1.6-beta" }
-orion_exp = {  git = "https://github.com/galaxy-sec/orion-exp.git", tag = "v0.1.1" }
+orion_exp = {  git = "https://github.com/galaxio-labs/orion-exp.git", tag = "v0.1.1" }
 # Orion Dependencies
 orion-error = "0.6"
 orion_conf = { version = "0.5", features = ["yaml", "toml"] }
@@ -93,6 +93,7 @@ victoriametrics = [
     "dep:regex",
     "dep:lazy_static",
     "dep:uuid",
+    "dep:sysinfo",
 ]
 doris = ["dep:reqwest"]
 elasticsearch = ["dep:reqwest"]
@@ -144,6 +145,7 @@ rand = { workspace = true }
 urlencoding = { workspace = true }
 flate2 = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
+sysinfo = { version = "0.38", default-features = false, features = ["system"], optional = true }
 
 [dev-dependencies]
 env_logger = { workspace = true }

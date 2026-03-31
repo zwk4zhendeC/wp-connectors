@@ -4,14 +4,17 @@ use async_trait::async_trait;
 use orion_conf::StructError;
 use prometheus::{Encoder, TextEncoder};
 use std::sync::Arc;
+use sysinfo::System;
 use tokio::{sync::oneshot, task::JoinHandle};
 use wp_connector_api::{SinkReason, SinkResult};
 use wp_log::{error_data, info_data};
 use wp_model_core::model::{DataRecord, Value};
 
-use crate::victoriametrics::metrics::{sink_type_stat, source_type_stat};
+use crate::victoriametrics::metrics::{
+    cpu_usage_stat, memory_usage_stat, sink_type_stat, source_type_stat,
+};
 
-use super::metrics::{parse_all_stat, parse_success_stat, receive_data_stat, sink_stat};
+use super::metrics::{parse_all_stat, receive_data_stat, sink_stat};
 
 pub(crate) struct VictoriaMetricExporter {
     insert_url: String,
@@ -19,11 +22,13 @@ pub(crate) struct VictoriaMetricExporter {
     flush_interval: Duration,
     stop_tx: Option<oneshot::Sender<()>>,
     flush_handle: Option<JoinHandle<()>>,
+    system: System,
 }
 
 impl Clone for VictoriaMetricExporter {
     fn clone(&self) -> Self {
         Self {
+            system: System::new(),
             insert_url: self.insert_url.clone(),
             client: self.client.clone(),
             flush_interval: self.flush_interval,
@@ -45,6 +50,7 @@ impl VictoriaMetricExporter {
             stop_tx: None,
             flush_handle: None,
             client,
+            system: System::new(),
         }
     }
 
@@ -147,7 +153,7 @@ impl wp_connector_api::AsyncRecordSink for VictoriaMetricExporter {
                     source_type_stat(data);
                 }
                 "Parse" => {
-                    parse_success_stat(data);
+                    // parse_success_stat(data);
                     parse_all_stat(data);
                 }
                 "Sink" => {
@@ -157,6 +163,8 @@ impl wp_connector_api::AsyncRecordSink for VictoriaMetricExporter {
                 _ => {}
             }
         }
+        cpu_usage_stat(data, &mut self.system);
+        memory_usage_stat(data, &mut self.system);
         Ok(())
     }
 
@@ -214,7 +222,8 @@ impl wp_connector_api::AsyncRawDataSink for VictoriaMetricExporter {
 mod tests {
     use super::*;
     use crate::victoriametrics::metrics::{
-        PARSE_ALL, PARSE_SUCCESS, PID, RECV_FROM_SOURCE, SEND_TO_SINK, SINK_TYPES,
+        PARSE_ALL, RECV_FROM_SOURCE, SEND_TO_SINK, SINK_TYPES, parse_all, send_sink,
+        sink_type_values, source_values,
     };
     use wp_connector_api::{AsyncCtrl, AsyncRecordSink};
     use wp_model_core::model::{DataField, DataRecord};
@@ -243,7 +252,11 @@ mod tests {
         pick_record.append(DataField::from_chars("stage", "Pick"));
         pick_record.append(DataField::from_chars("target", pick_key));
         pick_record.append(DataField::from_digit("total", 2));
-        let pick_counter = RECV_FROM_SOURCE.with_label_values(&[PID.as_str(), pick_key, pick_key]);
+        pick_record.append(DataField::from_chars("wp_source_type", "kafka"));
+        pick_record.append(DataField::from_chars("wp_access_ip", "127.0.0.1"));
+        let (pick_values, _) = source_values(&pick_record);
+        let pick_labels = pick_values.values();
+        let pick_counter = RECV_FROM_SOURCE.with_label_values(&pick_labels);
         let pick_before = pick_counter.get();
         exporter.sink_record(&pick_record).await.unwrap();
         assert_eq!(pick_counter.get(), pick_before + 2);
@@ -255,13 +268,13 @@ mod tests {
         parse_record.append(DataField::from_chars("target", parse_key));
         parse_record.append(DataField::from_digit("success", 5));
         parse_record.append(DataField::from_digit("total", 5));
-        let parse_counter =
-            PARSE_SUCCESS.with_label_values(&[PID.as_str(), parse_key, "", parse_key, "", "", ""]);
-        let parse_before = parse_counter.get();
-        let parse_all_counter = PARSE_ALL.with_label_values(&[PID.as_str(), "parse", "", ""]);
+        parse_record.append(DataField::from_chars("wp_package_name", "pkg-a"));
+        parse_record.append(DataField::from_chars("wp_rule_name", parse_key));
+        let (parse_values, _) = parse_all(&parse_record);
+        let parse_labels = parse_values.values();
+        let parse_all_counter = PARSE_ALL.with_label_values(&parse_labels);
         let parse_all_before = parse_all_counter.get();
         exporter.sink_record(&parse_record).await.unwrap();
-        assert_eq!(parse_counter.get(), parse_before + 5);
         assert_eq!(parse_all_counter.get(), parse_all_before + 5);
 
         // Sink stage
@@ -276,20 +289,14 @@ mod tests {
         sink_record_data.append(DataField::from_chars("sink_business", sink_business));
         sink_record_data.append(DataField::from_chars("log_business", log_business));
         sink_record_data.append(DataField::from_digit("success", 1));
-        let sink_counter = SEND_TO_SINK.with_label_values(&[
-            PID.as_str(),
-            sink_name,
-            "",
-            "",
-            "",
-            "",
-            log_business,
-            sink_name, // 当前逻辑中 sink_type 和 name 都是从 target 获取，所以这里使用 sink_name
-            sink_business,
-            sink_category,
-        ]);
+        sink_record_data.append(DataField::from_chars("wp_sink_group", sink_business));
+        let (sink_values, _) = send_sink(&sink_record_data);
+        let sink_labels = sink_values.values();
+        let sink_counter = SEND_TO_SINK.with_label_values(&sink_labels);
         let sink_before = sink_counter.get();
-        let sink_gauge = SINK_TYPES.with_label_values(&[PID.as_str(), sink_name, sink_category]); // target 字段是 sink_name
+        let (sink_type_metrics, _) = sink_type_values(&sink_record_data);
+        let sink_type_labels = sink_type_metrics.values();
+        let sink_gauge = SINK_TYPES.with_label_values(&sink_type_labels);
         sink_gauge.set(0.0);
         exporter.sink_record(&sink_record_data).await.unwrap();
         assert_eq!(sink_counter.get(), sink_before + 1);
