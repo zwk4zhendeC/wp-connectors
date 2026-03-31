@@ -3,7 +3,7 @@ resolver = "2"
 members = ["."]  # 当前包作为workspace成员
 
 [workspace.package]
-version = "0.10.1" # @gxl:set(version)
+version = "0.11.0" # @gxl:set(version)
 edition = "2024"
 description = "Unified connector for wp-flow system supporting both source and sink functionality"
 authors = ["WP Labs Team"]
@@ -22,7 +22,6 @@ wp-specs =  "0.8"
 wp-conf-base = "0.2"
 wp-data-fmt = "0.2"
 
-wp-schema = { git = "https://github.com/wp-labs/wp-schema.git", tag= "v0.1.6-beta" }
 orion_exp = {  git = "https://github.com/galaxio-labs/orion-exp.git", tag = "v0.1.1" }
 # Orion Dependencies
 orion-error = "0.6"
@@ -54,7 +53,6 @@ regex = "1.12"
 lazy_static = "1.5"
 uuid = { version = "1.19", features = ["v4"] }
 rand = "0.10"
-urlencoding = "2.1"
 flate2 = "1.0"
 base64 = "0.22"
 
@@ -111,9 +109,7 @@ wp-error = { workspace = true }
 wp-specs = { workspace = true }
 wp-conf-base = { workspace = true }
 wp-data-fmt = { workspace = true }
-wp-schema = { workspace = true }
 orion_exp = { workspace = true }
-sqlx = { workspace =true ,optional = true  }
 # Orion Dependencies - using workspace versions
 orion-error = { workspace = true }
 orion_conf = { workspace = true }
@@ -141,18 +137,17 @@ prometheus = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 lazy_static = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
-rand = { workspace = true }
-urlencoding = { workspace = true }
 flate2 = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 sysinfo = { version = "0.38", default-features = false, features = ["system"], optional = true }
 
 [dev-dependencies]
 env_logger = { workspace = true }
-chrono = { workspace = true }
 httpmock = "0.8"
 quickcheck = "1.0"
 quickcheck_macros = "1.0"
+rand = { workspace = true }
+sqlx = { workspace = true }
 sysinfo = { version = "0.38", default-features = false, features = ["system"] }
 # criterion = { version = "0.5", features = ["async_tokio"] }
 
