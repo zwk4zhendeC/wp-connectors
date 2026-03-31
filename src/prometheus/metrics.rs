@@ -125,7 +125,12 @@ pub fn sink_stat(data: &DataRecord, format: &str) {
 macro_rules! generate_metrics {
     ($name:ident; $($field:ident), *) => {
         #[derive(Default, Debug)] pub struct $name { $(pub $field: String,)* }
-        impl $name { pub fn new() -> $name { $name{ pid: PID.to_string(), .. Default::default() } }
+        impl $name {
+            pub fn new() -> $name {
+                let mut metrics = $name::default();
+                metrics.pid = PID.to_string();
+                metrics
+            }
             pub fn labels() -> Vec<&'static str> { vec![ $( stringify!($field), )* ] }
             pub fn values(&self) -> Vec<&str> { vec![ $( self.$field.as_str(), )* ] }
             pub fn is_valid(&self) -> bool { $( if stringify!($field).ne("pos_sn") && self.$field.is_empty() { return false; } )* true }
