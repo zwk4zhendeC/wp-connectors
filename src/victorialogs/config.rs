@@ -12,4 +12,5 @@ pub struct VictoriaLog {
     /// 请求超时（秒），数据量大时可适当调高。
     #[educe(Default = 60.0)]
     pub request_timeout_secs: f64,
+    pub tags: Vec<String>,
 }

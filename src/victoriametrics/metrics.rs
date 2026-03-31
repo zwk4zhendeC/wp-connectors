@@ -75,7 +75,7 @@ pub(crate) fn memory_usage_stat(data: &DataRecord, system: &mut System) {
 pub(crate) fn source_values(data: &DataRecord) -> (RecvMetrics, i64) {
     let mut recv_metrics = RecvMetrics::new();
     let mut count = 0;
-    if let Some(Value::Chars(f)) = data.get2("source_type").map(|x| x.get_value()) {
+    if let Some(Value::Chars(f)) = data.get2("wp_source_type").map(|x| x.get_value()) {
         recv_metrics.source_type = f.to_string();
     }
     if let Some(Value::Chars(f)) = data.get2("target").map(|x| x.get_value()) {
@@ -125,10 +125,10 @@ pub(crate) fn sink_type_values(data: &DataRecord) -> (SinkTypeMetrics, f64) {
 
 pub(crate) fn parse_all(data: &DataRecord) -> (ParseAllMetrics, u64) {
     let mut parse_metrics = ParseAllMetrics::new();
-    if let Some(Value::Chars(f)) = data.get2("package_name").map(|x| x.get_value()) {
+    if let Some(Value::Chars(f)) = data.get2("wp_package_name").map(|x| x.get_value()) {
         parse_metrics.package_name = f.to_string();
     }
-    if let Some(Value::Chars(f)) = data.get2("rule_name").map(|x| x.get_value()) {
+    if let Some(Value::Chars(f)) = data.get2("wp_rule_name").map(|x| x.get_value()) {
         parse_metrics.rule_name = f.to_string();
     }
     let mut count = 0;
@@ -140,7 +140,7 @@ pub(crate) fn parse_all(data: &DataRecord) -> (ParseAllMetrics, u64) {
 
 pub(crate) fn send_sink(data: &DataRecord) -> (SinkMetrics, u64) {
     let mut sink_metrics = SinkMetrics::new();
-    if let Some(Value::Chars(f)) = data.get2("sink_group").opt().get_value() {
+    if let Some(Value::Chars(f)) = data.get2("wp_sink_group").opt().get_value() {
         sink_metrics.sink_group = f.to_string();
     }
     // if let Some(Value::Chars(f)) = data.get2("sink_type").opt().get_value() {

@@ -17,6 +17,7 @@ pub(crate) struct VictoriaLogSink {
     client: reqwest::Client,
     fmt: TextFmt,
     create_time_field: Option<String>,
+    tags: HashMap<String, String>,
 }
 
 impl VictoriaLogSink {
@@ -56,6 +57,7 @@ impl VictoriaLogSink {
         let timestamp = self.resolve_timestamp_str(data);
         let fmt = FormatType::from(&self.fmt);
         let formatted_msg = fmt.fmt_record(data);
+        value_map.extend(self.tags.clone());
         value_map.insert("_msg".to_string(), formatted_msg);
         value_map.insert("_time".to_string(), timestamp);
         serde_json::to_string(&value_map).map_err(|e| {
@@ -118,13 +120,22 @@ impl VictoriaLogSink {
         client: reqwest::Client,
         fmt: TextFmt,
         create_time_field: Option<String>,
+        tags: Vec<String>,
     ) -> Self {
+        let tag_map: HashMap<String, String> = tags
+            .into_iter()
+            .filter_map(|tag| {
+                let (key, value) = tag.split_once(':')?;
+                Some((key.to_string(), value.to_string()))
+            })
+            .collect();
         Self {
             endpoint,
             insert_path,
             client,
             fmt,
             create_time_field,
+            tags: tag_map,
         }
     }
 }
@@ -212,6 +223,7 @@ mod tests {
             client,
             TextFmt::Json,
             None,
+            Vec::new(),
         );
 
         let result = sink.sink_record(&record).await;
@@ -232,6 +244,7 @@ mod tests {
             client,
             TextFmt::Json,
             None,
+            Vec::new(),
         )
     }
 
@@ -317,6 +330,7 @@ mod tests {
             client,
             TextFmt::Json,
             create_time_field.map(|s| s.to_string()),
+            Vec::new(),
         )
     }
 
