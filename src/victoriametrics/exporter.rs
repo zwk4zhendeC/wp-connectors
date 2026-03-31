@@ -252,8 +252,8 @@ mod tests {
         pick_record.append(DataField::from_chars("stage", "Pick"));
         pick_record.append(DataField::from_chars("target", pick_key));
         pick_record.append(DataField::from_digit("total", 2));
-        pick_record.append(DataField::from_chars("source_type", "kafka"));
-        pick_record.append(DataField::from_chars("access_ip", "127.0.0.1"));
+        pick_record.append(DataField::from_chars("wp_source_type", "kafka"));
+        pick_record.append(DataField::from_chars("wp_access_ip", "127.0.0.1"));
         let (pick_values, _) = source_values(&pick_record);
         let pick_labels = pick_values.values();
         let pick_counter = RECV_FROM_SOURCE.with_label_values(&pick_labels);
@@ -268,8 +268,8 @@ mod tests {
         parse_record.append(DataField::from_chars("target", parse_key));
         parse_record.append(DataField::from_digit("success", 5));
         parse_record.append(DataField::from_digit("total", 5));
-        parse_record.append(DataField::from_chars("package_name", "pkg-a"));
-        parse_record.append(DataField::from_chars("rule_name", parse_key));
+        parse_record.append(DataField::from_chars("wp_package_name", "pkg-a"));
+        parse_record.append(DataField::from_chars("wp_rule_name", parse_key));
         let (parse_values, _) = parse_all(&parse_record);
         let parse_labels = parse_values.values();
         let parse_all_counter = PARSE_ALL.with_label_values(&parse_labels);
@@ -289,7 +289,7 @@ mod tests {
         sink_record_data.append(DataField::from_chars("sink_business", sink_business));
         sink_record_data.append(DataField::from_chars("log_business", log_business));
         sink_record_data.append(DataField::from_digit("success", 1));
-        sink_record_data.append(DataField::from_chars("sink_group", sink_business));
+        sink_record_data.append(DataField::from_chars("wp_sink_group", sink_business));
         let (sink_values, _) = send_sink(&sink_record_data);
         let sink_labels = sink_values.values();
         let sink_counter = SEND_TO_SINK.with_label_values(&sink_labels);

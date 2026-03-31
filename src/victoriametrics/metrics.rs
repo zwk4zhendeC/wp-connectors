@@ -81,7 +81,7 @@ pub(crate) fn source_values(data: &DataRecord) -> (RecvMetrics, i64) {
     if let Some(Value::Chars(f)) = data.get2("target").map(|x| x.get_value()) {
         recv_metrics.source_name = f.to_string();
     }
-    if let Some(Value::Chars(f)) = data.get2("access_ip").map(|x| x.get_value()) {
+    if let Some(Value::Chars(f)) = data.get2("wp_access_ip").map(|x| x.get_value()) {
         recv_metrics.source_name = f.to_string();
     }
     if let Some(Value::Digit(f)) = data.get2("total").map(|x| x.get_value()) {
