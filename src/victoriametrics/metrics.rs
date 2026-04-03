@@ -146,7 +146,7 @@ pub(crate) fn send_sink(data: &DataRecord) -> (SinkMetrics, u64) {
     // if let Some(Value::Chars(f)) = data.get2("sink_type").opt().get_value() {
     //     sink_metrics.sink_type = f.to_string();
     // }
-    if let Some(Value::Chars(f)) = data.get2("target").opt().get_value() {
+    if let Some(Value::Chars(f)) = data.get2("wp_sink_name").opt().get_value() {
         sink_metrics.sink_name = f.to_string();
     }
     let mut count = 0;

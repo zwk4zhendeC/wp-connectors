@@ -290,6 +290,7 @@ mod tests {
         sink_record_data.append(DataField::from_chars("log_business", log_business));
         sink_record_data.append(DataField::from_digit("success", 1));
         sink_record_data.append(DataField::from_chars("wp_sink_group", sink_business));
+        sink_record_data.append(DataField::from_chars("wp_sink_name", sink_name));
         let (sink_values, _) = send_sink(&sink_record_data);
         let sink_labels = sink_values.values();
         let sink_counter = SEND_TO_SINK.with_label_values(&sink_labels);
