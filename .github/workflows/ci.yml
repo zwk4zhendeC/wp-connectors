@@ -43,6 +43,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      # - name: Debug
+      #   uses: mxschmitt/action-tmate@v3
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -56,7 +58,7 @@ jobs:
       # - name: Debug
       #   uses: mxschmitt/action-tmate@v3
       - name: Run integration test
-        run:  cargo test --all-features -- --test-threads=1
+        run:  'cargo test --tests --features external_integration integration_tests:: -- --nocapture --ignored'
 
   security:
     name: Security Audit

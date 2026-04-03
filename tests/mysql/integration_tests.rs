@@ -1,4 +1,4 @@
-#![cfg(feature = "mysql")]
+#![cfg(all(feature = "mysql", feature = "external_integration"))]
 
 use anyhow::Result;
 use wp_connectors::mysql::MySQLSinkFactory;
@@ -12,6 +12,7 @@ use crate::mysql_common::{
 };
 
 #[tokio::test]
+#[ignore = "集成测试默认忽略，请按需手动执行"]
 async fn test_mysql_sink_full_integration() -> Result<()> {
     let docker_tool = DockerComposeTool::new("tests/mysql/component/docker-compose.yml")?;
 
@@ -22,5 +23,5 @@ async fn test_mysql_sink_full_integration() -> Result<()> {
         .with_async_wait_ready(|_params| async { wait_for_mysql_ready().await });
 
     let runtime = SinkIntegrationRuntime::new(docker_tool, vec![sink_info]);
-    runtime.run().await
+    runtime.run(true).await
 }

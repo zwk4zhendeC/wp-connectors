@@ -1,4 +1,4 @@
-#![cfg(feature = "doris")]
+#![cfg(all(feature = "doris", feature = "external_integration"))]
 //! Integration tests for Doris sink using the new integration test framework.
 
 use anyhow::Result;
@@ -15,6 +15,7 @@ use crate::doris_common::{
 /// 完整的 Doris 集成测试
 /// 运行测试:
 #[tokio::test]
+#[ignore = "集成测试默认忽略，请按需手动执行"]
 async fn test_doris_sink_full_integration() -> Result<()> {
     // 1. 创建 Docker Compose 工具
     let docker_tool = DockerComposeTool::new("tests/doris/component/integration_tests.yml")?;
@@ -28,7 +29,7 @@ async fn test_doris_sink_full_integration() -> Result<()> {
 
     // 3. 创建运行时并执行测试
     let runtime = SinkIntegrationRuntime::new(docker_tool, vec![sink_info]);
-    runtime.run().await?;
+    runtime.run(true).await?;
 
     println!("\n✅ Doris 集成测试完成！");
     Ok(())
