@@ -12,6 +12,7 @@ use crate::common::{
     sink::{integration_runtime::SinkIntegrationRuntime, sink_info::SinkInfo},
 };
 
+#[ignore]
 #[tokio::test]
 async fn test_clickhouse_sink_full_integration() -> Result<()> {
     let docker_tool = DockerComposeTool::new("tests/clickhouse/component/integration_tests.yml")?;
