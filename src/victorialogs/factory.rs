@@ -56,6 +56,16 @@ impl SinkFactory for VictoriaLogSinkFactory {
                 conf.request_timeout_secs = n;
             }
         }
+        if let Some(v) = spec.params.get("tags")
+            && let Some(tags) = v.as_array()
+        {
+            conf.tags.extend(
+                tags.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<_>>(),
+            );
+        }
+
         let fmt = spec
             .params
             .get("fmt")
@@ -76,6 +86,7 @@ impl SinkFactory for VictoriaLogSinkFactory {
             client,
             fmt,
             conf.create_time_field.clone(),
+            conf.tags.clone(),
         );
         Ok(SinkHandle::new(Box::new(sink)))
     }
@@ -87,10 +98,16 @@ impl SinkDefProvider for VictoriaLogSinkFactory {
             id: "victorialog_sink".into(),
             kind: self.kind().into(),
             scope: ConnectorScope::Sink,
-            allow_override: vec!["endpoint", "insert_path", "fmt", "request_timeout_secs"]
-                .into_iter()
-                .map(str::to_string)
-                .collect(),
+            allow_override: vec![
+                "endpoint",
+                "insert_path",
+                "fmt",
+                "request_timeout_secs",
+                "tags",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
             default_params: victorialog_defaults(),
             origin: Some("wp-connectors:victorialog_sink".into()),
         }
