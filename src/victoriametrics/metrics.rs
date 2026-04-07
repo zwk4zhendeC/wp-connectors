@@ -90,39 +90,6 @@ pub(crate) fn source_values(data: &DataRecord) -> (RecvMetrics, i64) {
     (recv_metrics, count)
 }
 
-pub(crate) fn source_type_values(data: &DataRecord) -> (SourceTypeMetrics, f64) {
-    let mut source_type_metrics = SourceTypeMetrics::new();
-    if let Some(Value::Chars(f)) = data.get2("target").map(|x| x.get_value()) {
-        source_type_metrics.source_type = f.to_string();
-    }
-    (source_type_metrics, 1.0)
-}
-
-pub(crate) fn sink_type_values(data: &DataRecord) -> (SinkTypeMetrics, f64) {
-    let mut sink_type_metrics = SinkTypeMetrics::new();
-    if let Some(Value::Chars(f)) = data.get2("sink_category").opt().get_value() {
-        sink_type_metrics.sink_category = f.to_string();
-    }
-    if let Some(Value::Chars(f)) = data.get2("target").opt().get_value() {
-        sink_type_metrics.sink_type = f.to_string();
-    }
-    (sink_type_metrics, 1.0)
-}
-
-// pub(crate) fn parse_success(data: &DataRecord) -> (ParseMetrics, u64) {
-//     let mut parse_metrics = ParseMetrics::new();
-//     let mut count = 0;
-//     if let Some(Value::Chars(f)) = data.get2("target").map(|x| x.get_value()) {
-//         parse_metrics.rule_name = f.to_string();
-//         parse_metrics.log_business = f.to_string();
-//     }
-//     parse_metrics.extend_metrics(data);
-//     if let Some(Value::Digit(f)) = data.get2("success").opt().get_value() {
-//         count = *f;
-//     }
-//     (parse_metrics, count as u64)
-// }
-
 pub(crate) fn parse_all(data: &DataRecord) -> (ParseAllMetrics, u64) {
     let mut parse_metrics = ParseAllMetrics::new();
     if let Some(Value::Chars(f)) = data.get2("wp_package_name").map(|x| x.get_value()) {
@@ -165,12 +132,7 @@ pub fn receive_data_stat(data: &DataRecord) {
             .inc_by(total as u64);
     }
 }
-pub fn source_type_stat(data: &DataRecord) {
-    let (values, total) = source_type_values(data);
-    if values.is_valid() {
-        SOURCE_TYPES.with_label_values(&values.values()).set(total);
-    }
-}
+
 // pub fn parse_success_stat(data: &DataRecord) {
 //     let (values, success) = parse_success(data);
 //     PARSE_SUCCESS
@@ -191,12 +153,6 @@ pub fn sink_stat(data: &DataRecord) {
             .inc_by(count);
     }
 }
-pub fn sink_type_stat(data: &DataRecord) {
-    let (values, flag) = sink_type_values(data);
-    if values.is_valid() {
-        SINK_TYPES.with_label_values(&values.values()).set(flag);
-    }
-}
 
 macro_rules! generate_metrics {
     ($name:ident; $($field:ident), *) => {
@@ -205,6 +161,9 @@ macro_rules! generate_metrics {
             pub fn new() -> $name {
                 let mut metrics = $name::default();
                 metrics.pid = PID.to_string();
+                metrics.instance = PID.to_string();
+                metrics.access_type = String::from("service");
+                metrics.access_name = String::from("warp-parse");
                 metrics
             }
             pub fn labels() -> Vec<&'static str> { vec![ $( stringify!($field), )* ] }
@@ -217,15 +176,13 @@ macro_rules! generate_metrics {
         }
     };
 }
-generate_metrics!(CpuMetrics; pid);
-generate_metrics!(MemoryMetrics; pid);
+generate_metrics!(CpuMetrics;  pid, access_type, access_name, instance);
+generate_metrics!(MemoryMetrics; pid, access_type, access_name, instance);
 
-generate_metrics!(SourceTypeMetrics; pid, source_type);
-generate_metrics!(SinkTypeMetrics; pid, sink_type, sink_category);
-generate_metrics!(RecvMetrics; pid, source_type, source_name);
-generate_metrics!(ParseAllMetrics; pid, package_name, rule_name);
+generate_metrics!(RecvMetrics; pid, access_type, access_name, instance, source_type, source_name);
+generate_metrics!(ParseAllMetrics; pid, access_type, access_name, instance, package_name, rule_name);
 // generate_extend_metrics!(ParseMetrics; pid, rule_name, wp_src_ip, log_business, log_type, log_desc, pos_sn);
-generate_metrics!(SinkMetrics; pid, sink_group, sink_name);
+generate_metrics!(SinkMetrics; pid, access_type, access_name, instance, sink_group, sink_name);
 
 lazy_static! {
     pub static ref PID: String = sysinfo::get_current_pid()
@@ -249,18 +206,6 @@ lazy_static! {
         &SinkMetrics::labels()
     )
     .expect("register wparse_send_to_sink fail");
-    pub static ref SOURCE_TYPES: GaugeVec = register_gauge_vec!(
-        "wparse_source_types",
-        "The count of source types.",
-        &SourceTypeMetrics::labels()
-    )
-    .expect("register wparse_source_types fail");
-    pub static ref SINK_TYPES: GaugeVec = register_gauge_vec!(
-        "wparse_sink_types",
-        "The count of sink types.",
-        &SinkTypeMetrics::labels()
-    )
-    .expect("register wparse_sink_types fail");
     pub static ref CPU_USAGE: GaugeVec =
         register_gauge_vec!("wparse_cpu_usage", "The CPU usage.", &CpuMetrics::labels())
             .expect("register wparse_cpu_usage fail");

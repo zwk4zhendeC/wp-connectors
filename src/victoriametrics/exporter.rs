@@ -10,9 +10,7 @@ use wp_connector_api::{SinkReason, SinkResult};
 use wp_log::{error_data, info_data};
 use wp_model_core::model::{DataRecord, Value};
 
-use crate::victoriametrics::metrics::{
-    cpu_usage_stat, memory_usage_stat, sink_type_stat, source_type_stat,
-};
+use crate::victoriametrics::metrics::{cpu_usage_stat, memory_usage_stat};
 
 use super::metrics::{parse_all_stat, receive_data_stat, sink_stat};
 
@@ -150,7 +148,6 @@ impl wp_connector_api::AsyncRecordSink for VictoriaMetricExporter {
             match field.as_str() {
                 "Pick" => {
                     receive_data_stat(data);
-                    source_type_stat(data);
                 }
                 "Parse" => {
                     // parse_success_stat(data);
@@ -158,7 +155,6 @@ impl wp_connector_api::AsyncRecordSink for VictoriaMetricExporter {
                 }
                 "Sink" => {
                     sink_stat(data);
-                    sink_type_stat(data);
                 }
                 _ => {}
             }
@@ -222,8 +218,7 @@ impl wp_connector_api::AsyncRawDataSink for VictoriaMetricExporter {
 mod tests {
     use super::*;
     use crate::victoriametrics::metrics::{
-        PARSE_ALL, RECV_FROM_SOURCE, SEND_TO_SINK, SINK_TYPES, parse_all, send_sink,
-        sink_type_values, source_values,
+        PARSE_ALL, RECV_FROM_SOURCE, SEND_TO_SINK, parse_all, send_sink, source_values,
     };
     use wp_connector_api::{AsyncCtrl, AsyncRecordSink};
     use wp_model_core::model::{DataField, DataRecord};
@@ -295,13 +290,8 @@ mod tests {
         let sink_labels = sink_values.values();
         let sink_counter = SEND_TO_SINK.with_label_values(&sink_labels);
         let sink_before = sink_counter.get();
-        let (sink_type_metrics, _) = sink_type_values(&sink_record_data);
-        let sink_type_labels = sink_type_metrics.values();
-        let sink_gauge = SINK_TYPES.with_label_values(&sink_type_labels);
-        sink_gauge.set(0.0);
         exporter.sink_record(&sink_record_data).await.unwrap();
         assert_eq!(sink_counter.get(), sink_before + 1);
-        assert_eq!(sink_gauge.get(), 1.0);
     }
 
     #[tokio::test]
