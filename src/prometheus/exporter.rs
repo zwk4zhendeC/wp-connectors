@@ -4,12 +4,15 @@ use actix_web::{App, HttpRequest, HttpResponse, HttpServer, get};
 use async_trait::async_trait;
 use prometheus::Encoder;
 use std::sync::Arc;
+use sysinfo::System;
 use wp_connector_api::{SinkReason, SinkResult};
 use wp_model_core::model::DataRecord;
 use wp_model_core::model::Value;
 
 use super::metrics::IntoOptField; // 使 .opt() 可见
-use super::metrics::{parse_all_stat, parse_success_stat, receive_data_stat, sink_stat};
+use super::metrics::{
+    cpu_usage_stat, memory_usage_stat, parse_all_stat, receive_data_stat, sink_stat,
+};
 use orion_exp::ValueGet0; // 使 .get_value() 可见
 
 type AnyResult<T> = anyhow::Result<T>;
@@ -25,10 +28,8 @@ async fn metrics(_req: HttpRequest) -> HttpResponse {
     }
 }
 
-#[derive(Clone)]
 pub(crate) struct PrometheusExporter {
-    pub(super) source_key_format: String,
-    pub(super) sink_key_format: String,
+    pub(super) system: System,
 }
 
 #[async_trait]
@@ -37,18 +38,19 @@ impl wp_connector_api::AsyncRecordSink for PrometheusExporter {
         if let Some(Value::Chars(field)) = data.get2("stage").opt().get_value() {
             match field.as_str() {
                 "Pick" => {
-                    receive_data_stat(data, &self.source_key_format);
+                    receive_data_stat(data);
                 }
                 "Parse" => {
-                    parse_success_stat(data);
                     parse_all_stat(data);
                 }
                 "Sink" => {
-                    sink_stat(data, &self.sink_key_format);
+                    sink_stat(data);
                 }
                 _ => {}
             }
         }
+        cpu_usage_stat(data, &mut self.system);
+        memory_usage_stat(data, &mut self.system);
         Ok(())
     }
 

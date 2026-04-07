@@ -86,6 +86,7 @@ prometheus = [
     "dep:regex",
     "dep:lazy_static",
     "dep:uuid",
+    "dep:sysinfo"
 ]
 victoriametrics = [
     "dep:reqwest",
