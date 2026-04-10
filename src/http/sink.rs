@@ -468,7 +468,7 @@ impl AsyncRecordSink for HttpSink {
 
         // Format the batch of DataRecords according to configured format
         let formatted = self.format_records_bytes(&data)?;
-        println!("{}", String::from_utf8(formatted.clone()).unwrap());
+        // println!("{}", String::from_utf8(formatted.clone()).unwrap());
         // Compress data if compression is enabled
         let body = self.compress_data(&formatted)?;
 
