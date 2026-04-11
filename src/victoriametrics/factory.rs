@@ -53,12 +53,14 @@ impl SinkFactory for VictoriaMetricFactory {
                     "build victoriametric client failed: {err}"
                 )))
             })?;
-        let mut sink = VictoriaMetricExporter::new(
+        let sink = VictoriaMetricExporter::new(
             conf.insert_url.clone(),
             client,
             Duration::from_secs_f64(conf.flush_interval_secs),
         );
-        sink.start_flush_task();
+        // 启动定时 flush 任务：计数器收集与推送解耦，
+        // 推送以 wall-clock 整秒对齐，保证 VictoriaMetrics 数据点均匀分布。
+        // sink.start_flush_task();
         Ok(SinkHandle::new(Box::new(sink)))
     }
 }
@@ -82,6 +84,8 @@ impl SinkDefProvider for VictoriaMetricFactory {
 fn victoriametric_defaults() -> ParamMap {
     let mut params = ParamMap::new();
     params.insert("endpoint".into(), json!("http://localhost:8480"));
-    params.insert("flush_interval_secs".into(), json!(5.0));
+    // flush_interval_secs 决定推送到 VictoriaMetrics 的时间分辨率，
+    // 1s 可获得秒级数据点，适合 rate([20s+]) 的稳定计算。
+    params.insert("flush_interval_secs".into(), json!(1.0));
     params
 }

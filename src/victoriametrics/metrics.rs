@@ -32,25 +32,17 @@ use wp_model_core::model::Value;
 
 // ------------- metrics helpers -------------
 
-pub(crate) fn cpu_usage_stat(data: &DataRecord, system: &mut System) {
-    let (values, usage) = cpu_usage_values(data, system);
-    CPU_USAGE.with_label_values(&values.values()).set(usage);
-}
-
-pub fn cpu_usage_values(_data: &DataRecord, system: &mut System) -> (CpuMetrics, f64) {
-    let cpu_metrics = CpuMetrics::new();
-    let cpu_usage = current_process_usage(system)
-        .map(|(cpu, _)| cpu)
-        .unwrap_or(0.0);
-    (cpu_metrics, cpu_usage)
-}
-
-pub fn memory_usage_values(_data: &DataRecord, system: &mut System) -> (MemoryMetrics, f64) {
-    let memory_metrics = MemoryMetrics::new();
-    let memory_usage = current_process_usage(system)
-        .map(|(_, memory)| memory)
-        .unwrap_or(0.0);
-    (memory_metrics, memory_usage)
+/// 一次 sysinfo 刷新同时更新 CPU + 内存两个 gauge，避免重复的系统调用开销。
+/// 在定时 flush 任务中调用，采样间隔即 flush_interval_secs。
+pub(crate) fn system_usage_stat(system: &mut System) {
+    if let Some((cpu, mem)) = current_process_usage(system) {
+        CPU_USAGE
+            .with_label_values(&CpuMetrics::new().values())
+            .set(cpu);
+        MEMORY_USAGE
+            .with_label_values(&MemoryMetrics::new().values())
+            .set(mem);
+    }
 }
 
 fn current_process_usage(system: &mut System) -> Option<(f64, f64)> {
@@ -65,11 +57,6 @@ fn current_process_usage(system: &mut System) -> Option<(f64, f64)> {
         process.cpu_usage() as f64,
         process.memory() as f64 / 1024.0 / 1024.0,
     ))
-}
-
-pub(crate) fn memory_usage_stat(data: &DataRecord, system: &mut System) {
-    let (values, usage) = memory_usage_values(data, system);
-    MEMORY_USAGE.with_label_values(&values.values()).set(usage);
 }
 
 pub(crate) fn source_values(data: &DataRecord) -> (RecvMetrics, i64) {
@@ -133,12 +120,6 @@ pub fn receive_data_stat(data: &DataRecord) {
     }
 }
 
-// pub fn parse_success_stat(data: &DataRecord) {
-//     let (values, success) = parse_success(data);
-//     PARSE_SUCCESS
-//         .with_label_values(&values.values())
-//         .inc_by(success);
-// }
 pub fn parse_all_stat(data: &DataRecord) {
     let (values, all) = parse_all(data);
     if values.is_valid() {
