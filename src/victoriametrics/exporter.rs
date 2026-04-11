@@ -264,7 +264,7 @@ mod tests {
     use crate::victoriametrics::metrics::{
         PARSE_ALL, RECV_FROM_SOURCE, SEND_TO_SINK, parse_all, send_sink, source_values,
     };
-    use wp_connector_api::{AsyncCtrl, AsyncRecordSink};
+    use wp_connector_api::AsyncRecordSink;
     use wp_model_core::model::{DataField, DataRecord};
 
     fn test_exporter() -> VictoriaMetricExporter {
