@@ -25,6 +25,8 @@ impl SourceFactory for HttpSourceFactory {
 
     async fn build(&self, spec: &SourceSpec, _ctx: &SourceBuildCtx) -> SourceResult<SourceSvcIns> {
         let config = build_http_source_config(spec)?;
+        // 使用有界队列而不是无界队列，至少给入口层留一个明确的背压边界。
+        // 当前容量是经验值；若高并发场景下仍然偏小/偏大，后续可以继续参数化。
         let (sender, receiver) = mpsc::channel(http_source_queue_capacity());
         HttpSource::register(&config, sender)
             .await
@@ -63,6 +65,8 @@ fn build_http_source_config(spec: &SourceSpec) -> SourceResult<HttpSourceConfig>
 }
 
 fn required_port(spec: &SourceSpec, key: &str) -> SourceResult<u16> {
+    // 端口是监听入口的一部分，必须在 build 阶段尽早拒绝非法值，
+    // 否则错误会延后到 actix bind，定位成本更高。
     let port = spec
         .params
         .get(key)
@@ -77,6 +81,7 @@ fn required_port(spec: &SourceSpec, key: &str) -> SourceResult<u16> {
 }
 
 fn required_path(spec: &SourceSpec, key: &str) -> SourceResult<String> {
+    // path 要求绝对路径风格，避免 `/ingest` 和 `ingest` 这种等价但不统一的配置带来重复注册问题。
     let path = spec
         .params
         .get(key)

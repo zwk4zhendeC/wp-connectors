@@ -65,7 +65,8 @@ impl DataSource for CountSource {
         if self.exhausted() {
             return Err(SourceReason::EOF.into());
         }
-        // 距离上次间隔
+        // 这里不是每次固定 sleep(interval)，而是按“距离上次产出还差多少”补齐等待。
+        // 原因：上层调度可能会中断长时间阻塞，固定睡眠会放大丢轮询风险。
         if !self.interval.is_zero()
             && let Some(last_emit_at) = self.last_emit_at
         {

@@ -29,6 +29,8 @@ const DEFAULT_COMPRESSION: &str = "none";
 const HTTP_SOURCE_QUEUE_CAPACITY: usize = 1024;
 const DEFAULT_BODY_LIMIT: usize = 16 * 1024 * 1024;
 
+// 进程级 HTTP Source 运行时。
+// 约束：同一端口只启动一个 actix server，不同 path 在该端口下复用，避免多个 source 争抢监听同一端口。
 static HTTP_SOURCE_RUNTIME: OnceLock<Arc<HttpSourceRuntime>> = OnceLock::new();
 
 #[derive(Debug, Clone)]
@@ -47,6 +49,8 @@ pub struct HttpSource {
     key: Arc<String>,
     tags: Arc<Tags>,
     config: HttpSourceConfig,
+    // HTTP handler 负责接收和解析请求，source 侧只消费已就绪的 payload，
+    // 这样可以避免把网络接入和解析阻塞在 receive() 调度路径上。
     receiver: mpsc::Receiver<Vec<Bytes>>,
     runtime: Arc<HttpSourceRuntime>,
 }
@@ -77,6 +81,7 @@ impl HttpSource {
     }
 
     fn build_batch(&self, payloads: Vec<Bytes>) -> SourceBatch {
+        // 进入队列的数据已经完成协议层解析，这里只负责补 SourceEvent 元信息。
         payloads
             .into_iter()
             .map(|payload| {
@@ -135,6 +140,7 @@ fn http_source_runtime() -> Arc<HttpSourceRuntime> {
 
 #[derive(Default)]
 struct HttpSourceRuntime {
+    // 按端口复用 server；path 级别路由在 PortRuntime 内部维护。
     ports: Mutex<HashMap<u16, Arc<PortRuntime>>>,
 }
 
@@ -148,6 +154,8 @@ impl HttpSourceRuntime {
         let port_runtime = self.ensure_port_runtime(port).await?;
         let mut routes = port_runtime.routes.write().await;
         if routes.contains_key(&path) {
+            // `port + path` 是 source 的业务唯一键；重复注册直接拒绝，
+            // 否则多个 source 会收到同一路径请求，语义不明确。
             anyhow::bail!("http source already exists for {}{}", port, path);
         }
         routes.insert(path, RouteTarget { sender });
@@ -171,6 +179,7 @@ impl HttpSourceRuntime {
         };
 
         if should_stop {
+            // 最后一个路由移除后主动关闭对应端口，避免测试或热重建时长期占用端口。
             {
                 let mut ports = self.ports.lock().await;
                 ports.remove(&port);
@@ -212,6 +221,7 @@ impl PortRuntime {
         let log_state = self.clone();
         let server = HttpServer::new(move || {
             App::new()
+                // 这里统一做 body 上限保护；source 是接收入口，若不限制，错误请求可能直接放大内存占用。
                 .app_data(web::PayloadConfig::new(DEFAULT_BODY_LIMIT))
                 .app_data(web::Data::new(app_state.clone()))
                 .default_service(web::to(handle_request))
@@ -309,6 +319,7 @@ async fn handle_request(
 }
 
 fn resolve_fmt(request: &HttpRequest, query: &RequestQuery) -> Result<String, String> {
+    // 协议约束：请求参数优先级高于请求头，便于调用方在不改 header 的情况下做临时覆盖。
     let fmt = query
         .fmt
         .as_deref()
@@ -345,6 +356,8 @@ fn resolve_compression(
     request: &HttpRequest,
     query: &RequestQuery,
 ) -> Result<CompressionKind, String> {
+    // 只认 Content-Encoding，不读取 Accept-Encoding。
+    // 原因：这里处理的是“请求体已经采用何种编码”，不是“客户端希望响应怎么编码”。
     let compression = query
         .compression
         .as_deref()
@@ -375,6 +388,7 @@ fn decode_body(body: web::Bytes, compression: CompressionKind) -> anyhow::Result
         CompressionKind::Gzip => {
             // Actix may already decode request bodies based on Content-Encoding,
             // so only decompress when the payload still carries the gzip signature.
+            // 风险：不同框架/feature 组合对请求解压的时机可能不同，这里做兼容判断，避免二次解压失败。
             if !looks_like_gzip(body.as_ref()) {
                 return Ok(body);
             }
@@ -401,6 +415,8 @@ fn parse_payloads(body: &[u8], fmt: &str) -> anyhow::Result<Vec<Bytes>> {
 }
 
 fn parse_json_payloads(body: &[u8]) -> anyhow::Result<Vec<Bytes>> {
+    // 业务语义：json 模式允许单对象或数组输入，统一展开成“多条记录”的内部表示，
+    // 这样 source 下游不需要再区分顶层结构。
     let value: Value = serde_json::from_slice(body).context("invalid json payload")?;
     let values = match value {
         Value::Array(values) => values,
@@ -426,6 +442,8 @@ fn parse_ndjson_payloads(body: &[u8]) -> anyhow::Result<Vec<Bytes>> {
         if line.is_empty() {
             continue;
         }
+        // ndjson 不做整体 JSON 包装，但每一行必须是合法 JSON。
+        // 这样能尽早把坏数据挡在入口，避免下游 parser 收到格式污染的行。
         let value: Value = serde_json::from_str(line)
             .with_context(|| format!("invalid ndjson line {}", idx + 1))?;
         lines.push(Bytes::from(serde_json::to_vec(&value)?));
