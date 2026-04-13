@@ -8,9 +8,21 @@
 # 风险评估：MySQL 在内网环境，攻击者无法观察网络定时信息
 # 计划：等待 sqlx 上游升级到 rsa 0.10.x
 # 重新评估日期：2026-07-03（6个月后需要重新评估）
+# RUSTSEC-2024-0436: paste crate no longer maintained
+# 原因：传递依赖，由 clickhouse 0.15.0 引入，当前无官方修复版本可升级
+# 风险评估：属维护状态告警，不是已知可利用漏洞；仅在启用 clickhouse feature 时出现
+# 计划：跟踪 clickhouse 上游是否移除 paste 依赖或切换到维护中的替代方案
+# 重新评估日期：2026-07-13（3个月后需要重新评估）
+# RUSTSEC-2026-0097: rand 0.8.x unsound with custom logger using rand::rng()
+# 原因：传递依赖，由 sqlx-mysql / sqlx-postgres -> rsa / num-bigint-dig 引入
+# 风险评估：当前代码库未实现自定义 logger，且 lockfile 中 rand 0.8.5 未启用 log feature，不满足公告触发条件
+# 计划：等待 sqlx / sea-orm 上游升级到 rand >= 0.9.3 或移除受影响路径
+# 重新评估日期：2026-07-13（3个月后需要重新评估）
 ignore = [
     "RUSTSEC-2023-0071",
+    "RUSTSEC-2024-0436",
+    "RUSTSEC-2026-0097",
 ]
 
 # 注意：cargo-audit 不支持在配置文件中设置 expires
-# 需要在 CI 中或定期手动检查（建议：2026-07-03）
+# 需要在 CI 中或定期手动检查（建议：最晚于 2026-07-13 重新评估）
