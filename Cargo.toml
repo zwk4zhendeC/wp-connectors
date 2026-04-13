@@ -3,7 +3,7 @@ resolver = "2"
 members = ["."]  # 当前包作为workspace成员
 
 [workspace.package]
-version = "0.11.2" # @gxl:set(version)
+version = "0.12.1" # @gxl:set(version)
 edition = "2024"
 description = "Unified connector for wp-flow system supporting both source and sink functionality"
 authors = ["WP Labs Team"]
@@ -22,7 +22,7 @@ wp-specs =  "0.8"
 wp-conf-base = "0.2"
 wp-data-fmt = "0.2.4"
 
-orion_exp = {  git = "https://github.com/galaxio-labs/orion-exp.git", tag = "v0.1.1" }
+orion_exp = "0.1"
 # Orion Dependencies
 orion-error = "0.6"
 orion_conf = { version = "0.5", features = ["yaml", "toml"] }
@@ -38,7 +38,7 @@ serde_json = "1.0"
 toml = "1.0"
 tokio = { version = "1.48", features = ["full"] }
 bytes = "1.11.0"
-winnow = "0.7"
+winnow = "1.0"
 educe = { version = "0.6", default-features = false, features = ["Debug", "Default"] }
 sea-orm = { version = "1.1", default-features = false, features = ["sqlx-mysql", "sqlx-postgres", "runtime-tokio-rustls"] }
 sqlx = { version = "0.8", default-features = false, features = ["mysql", "runtime-tokio", "tls-native-tls"]  }
@@ -47,7 +47,7 @@ sqlx = { version = "0.8", default-features = false, features = ["mysql", "runtim
 # Optional Feature Dependencies
 actix-web = "4.12"
 reqwest = { version = "0.13", features = ["json"] }
-clickhouse = "0.14.2"
+clickhouse = "0.15.0"
 prometheus = "0.14"
 regex = "1.12"
 lazy_static = "1.5"
@@ -61,8 +61,8 @@ env_logger = "0.11"
 
 [package]
 name = "wp-connectors"
-version = "0.7.5"
 edition = "2024"
+version.workspace = true
 description = "Unified connector for wp-flow system supporting both source and sink functionality"
 authors = ["WP Labs Team"]
 license = "Apache-2.0"
