@@ -2,9 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use tokio::time::Instant;
-use wp_connector_api::{
-    CtrlRx, DataSource, SourceBatch, SourceEvent, SourceReason, SourceResult, Tags,
-};
+use wp_connector_api::{DataSource, SourceBatch, SourceEvent, SourceReason, SourceResult, Tags};
 use wp_model_core::raw::RawData;
 
 pub struct CountSource {
