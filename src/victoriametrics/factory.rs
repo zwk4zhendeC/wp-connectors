@@ -53,14 +53,13 @@ impl SinkFactory for VictoriaMetricFactory {
                     "build victoriametric client failed: {err}"
                 )))
             })?;
-        let sink = VictoriaMetricExporter::new(
+        let mut sink = VictoriaMetricExporter::new(
             conf.insert_url.clone(),
             client,
             Duration::from_secs_f64(conf.flush_interval_secs),
         );
         // 启动定时 flush 任务：计数器收集与推送解耦，
-        // 推送以 wall-clock 整秒对齐，保证 VictoriaMetrics 数据点均匀分布。
-        // sink.start_flush_task();
+        sink.start_flush_task();
         Ok(SinkHandle::new(Box::new(sink)))
     }
 }
