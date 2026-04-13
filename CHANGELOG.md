@@ -7,10 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.11.0] - 2026-03-31
+## [0.12.0] - 2026-04-11
 
 ### Changed
-- Bump project version to `0.11.0`
+- Bump project version to `0.12.0`
 - Rework VictoriaMetrics exporter metrics collection and labels compared with `0.10.0`
 - Add process CPU and memory gauges for the current connector process via `sysinfo`
 - Align VictoriaMetrics source/parse/sink labels with pipeline fields such as `wp_source_type`, `wp_package_name`, `wp_rule_name`, and `wp_sink_group`
@@ -118,8 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial 0.7.x series release.
 
-[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.11.0...HEAD
-[0.11.0]: https://github.com/wp-labs/wp-connectors/compare/v0.10.0...v0.11.0
+[Unreleased]: https://github.com/wp-labs/wp-connectors/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/wp-labs/wp-connectors/compare/v0.10.0...v0.12.0
 [0.10.0]: https://github.com/wp-labs/wp-connectors/compare/v0.7.8...v0.10.0
 [0.8.0]: https://github.com/wp-labs/wp-connectors/compare/v0.7.8...v0.8.0
 [0.7.8]: https://github.com/wp-labs/wp-connectors/compare/v0.7.7...v0.7.8
