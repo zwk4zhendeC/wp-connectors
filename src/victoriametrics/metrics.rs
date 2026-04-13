@@ -32,25 +32,17 @@ use wp_model_core::model::Value;
 
 // ------------- metrics helpers -------------
 
-pub(crate) fn cpu_usage_stat(data: &DataRecord, system: &mut System) {
-    let (values, usage) = cpu_usage_values(data, system);
-    CPU_USAGE.with_label_values(&values.values()).set(usage);
-}
-
-pub fn cpu_usage_values(_data: &DataRecord, system: &mut System) -> (CpuMetrics, f64) {
-    let cpu_metrics = CpuMetrics::new();
-    let cpu_usage = current_process_usage(system)
-        .map(|(cpu, _)| cpu)
-        .unwrap_or(0.0);
-    (cpu_metrics, cpu_usage)
-}
-
-pub fn memory_usage_values(_data: &DataRecord, system: &mut System) -> (MemoryMetrics, f64) {
-    let memory_metrics = MemoryMetrics::new();
-    let memory_usage = current_process_usage(system)
-        .map(|(_, memory)| memory)
-        .unwrap_or(0.0);
-    (memory_metrics, memory_usage)
+/// 一次 sysinfo 刷新同时更新 CPU + 内存两个 gauge，避免重复的系统调用开销。
+/// 在定时 flush 任务中调用，采样间隔即 flush_interval_secs。
+pub(crate) fn system_usage_stat(system: &mut System) {
+    if let Some((cpu, mem)) = current_process_usage(system) {
+        CPU_USAGE
+            .with_label_values(&CpuMetrics::new().values())
+            .set(cpu);
+        MEMORY_USAGE
+            .with_label_values(&MemoryMetrics::new().values())
+            .set(mem);
+    }
 }
 
 fn current_process_usage(system: &mut System) -> Option<(f64, f64)> {
@@ -65,11 +57,6 @@ fn current_process_usage(system: &mut System) -> Option<(f64, f64)> {
         process.cpu_usage() as f64,
         process.memory() as f64 / 1024.0 / 1024.0,
     ))
-}
-
-pub(crate) fn memory_usage_stat(data: &DataRecord, system: &mut System) {
-    let (values, usage) = memory_usage_values(data, system);
-    MEMORY_USAGE.with_label_values(&values.values()).set(usage);
 }
 
 pub(crate) fn source_values(data: &DataRecord) -> (RecvMetrics, i64) {
@@ -89,39 +76,6 @@ pub(crate) fn source_values(data: &DataRecord) -> (RecvMetrics, i64) {
     }
     (recv_metrics, count)
 }
-
-pub(crate) fn source_type_values(data: &DataRecord) -> (SourceTypeMetrics, f64) {
-    let mut source_type_metrics = SourceTypeMetrics::new();
-    if let Some(Value::Chars(f)) = data.get2("target").map(|x| x.get_value()) {
-        source_type_metrics.source_type = f.to_string();
-    }
-    (source_type_metrics, 1.0)
-}
-
-pub(crate) fn sink_type_values(data: &DataRecord) -> (SinkTypeMetrics, f64) {
-    let mut sink_type_metrics = SinkTypeMetrics::new();
-    if let Some(Value::Chars(f)) = data.get2("sink_category").opt().get_value() {
-        sink_type_metrics.sink_category = f.to_string();
-    }
-    if let Some(Value::Chars(f)) = data.get2("target").opt().get_value() {
-        sink_type_metrics.sink_type = f.to_string();
-    }
-    (sink_type_metrics, 1.0)
-}
-
-// pub(crate) fn parse_success(data: &DataRecord) -> (ParseMetrics, u64) {
-//     let mut parse_metrics = ParseMetrics::new();
-//     let mut count = 0;
-//     if let Some(Value::Chars(f)) = data.get2("target").map(|x| x.get_value()) {
-//         parse_metrics.rule_name = f.to_string();
-//         parse_metrics.log_business = f.to_string();
-//     }
-//     parse_metrics.extend_metrics(data);
-//     if let Some(Value::Digit(f)) = data.get2("success").opt().get_value() {
-//         count = *f;
-//     }
-//     (parse_metrics, count as u64)
-// }
 
 pub(crate) fn parse_all(data: &DataRecord) -> (ParseAllMetrics, u64) {
     let mut parse_metrics = ParseAllMetrics::new();
@@ -165,18 +119,7 @@ pub fn receive_data_stat(data: &DataRecord) {
             .inc_by(total as u64);
     }
 }
-pub fn source_type_stat(data: &DataRecord) {
-    let (values, total) = source_type_values(data);
-    if values.is_valid() {
-        SOURCE_TYPES.with_label_values(&values.values()).set(total);
-    }
-}
-// pub fn parse_success_stat(data: &DataRecord) {
-//     let (values, success) = parse_success(data);
-//     PARSE_SUCCESS
-//         .with_label_values(&values.values())
-//         .inc_by(success);
-// }
+
 pub fn parse_all_stat(data: &DataRecord) {
     let (values, all) = parse_all(data);
     if values.is_valid() {
@@ -191,12 +134,6 @@ pub fn sink_stat(data: &DataRecord) {
             .inc_by(count);
     }
 }
-pub fn sink_type_stat(data: &DataRecord) {
-    let (values, flag) = sink_type_values(data);
-    if values.is_valid() {
-        SINK_TYPES.with_label_values(&values.values()).set(flag);
-    }
-}
 
 macro_rules! generate_metrics {
     ($name:ident; $($field:ident), *) => {
@@ -205,6 +142,9 @@ macro_rules! generate_metrics {
             pub fn new() -> $name {
                 let mut metrics = $name::default();
                 metrics.pid = PID.to_string();
+                metrics.instance = PID.to_string();
+                metrics.access_type = String::from("service");
+                metrics.access_name = String::from("warp-parse");
                 metrics
             }
             pub fn labels() -> Vec<&'static str> { vec![ $( stringify!($field), )* ] }
@@ -217,15 +157,13 @@ macro_rules! generate_metrics {
         }
     };
 }
-generate_metrics!(CpuMetrics; pid);
-generate_metrics!(MemoryMetrics; pid);
+generate_metrics!(CpuMetrics;  pid, access_type, access_name, instance);
+generate_metrics!(MemoryMetrics; pid, access_type, access_name, instance);
 
-generate_metrics!(SourceTypeMetrics; pid, source_type);
-generate_metrics!(SinkTypeMetrics; pid, sink_type, sink_category);
-generate_metrics!(RecvMetrics; pid, source_type, source_name);
-generate_metrics!(ParseAllMetrics; pid, package_name, rule_name);
+generate_metrics!(RecvMetrics; pid, access_type, access_name, instance, source_type, source_name);
+generate_metrics!(ParseAllMetrics; pid, access_type, access_name, instance, package_name, rule_name);
 // generate_extend_metrics!(ParseMetrics; pid, rule_name, wp_src_ip, log_business, log_type, log_desc, pos_sn);
-generate_metrics!(SinkMetrics; pid, sink_group, sink_name);
+generate_metrics!(SinkMetrics; pid, access_type, access_name, instance, sink_group, sink_name);
 
 lazy_static! {
     pub static ref PID: String = sysinfo::get_current_pid()
@@ -249,18 +187,6 @@ lazy_static! {
         &SinkMetrics::labels()
     )
     .expect("register wparse_send_to_sink fail");
-    pub static ref SOURCE_TYPES: GaugeVec = register_gauge_vec!(
-        "wparse_source_types",
-        "The count of source types.",
-        &SourceTypeMetrics::labels()
-    )
-    .expect("register wparse_source_types fail");
-    pub static ref SINK_TYPES: GaugeVec = register_gauge_vec!(
-        "wparse_sink_types",
-        "The count of sink types.",
-        &SinkTypeMetrics::labels()
-    )
-    .expect("register wparse_sink_types fail");
     pub static ref CPU_USAGE: GaugeVec =
         register_gauge_vec!("wparse_cpu_usage", "The CPU usage.", &CpuMetrics::labels())
             .expect("register wparse_cpu_usage fail");

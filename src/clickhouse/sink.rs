@@ -1,15 +1,15 @@
 use super::config::ClickHouseSinkConfig;
+use crate::utils::fmt::{BatchFormat, fmt_strs};
 use crate::utils::time_stat_utils::TimeStatUtils;
 use async_trait::async_trait;
 use clickhouse::Client;
-use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use wp_connector_api::{
     AsyncCtrl, AsyncRawDataSink, AsyncRecordSink, SinkError, SinkReason, SinkResult,
 };
-use wp_model_core::model::{DataRecord, DataType};
+use wp_model_core::model::DataRecord;
 
 // 全局原子计数器，用于生成唯一的实例 ID
 static INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -53,44 +53,6 @@ impl ClickHouseSink {
         })
     }
 
-    /// 将 DataRecord 转换为 JSON 对象
-    ///
-    /// # Arguments
-    /// * `record` - 数据记录
-    ///
-    /// # Returns
-    /// * `serde_json::Value` - JSON 对象
-    fn record_to_json(&self, record: &DataRecord) -> JsonValue {
-        let mut map = serde_json::Map::new();
-
-        for field in &record.items {
-            // 跳过类型为 Ignore 的字段
-            if *field.get_meta() == DataType::Ignore {
-                continue;
-            }
-
-            let name = field.get_name().to_string();
-            let value = field.get_value().to_string();
-
-            // 尝试解析字段值为整数（i64）
-            let json_value = if let Ok(i) = value.parse::<i64>() {
-                JsonValue::Number(i.into())
-            } else if let Ok(f) = value.parse::<f64>() {
-                // 整数解析失败，尝试解析为浮点数（f64）
-                serde_json::Number::from_f64(f)
-                    .map(JsonValue::Number)
-                    .unwrap_or_else(|| JsonValue::String(value))
-            } else {
-                // 数值解析均失败，保留为字符串
-                JsonValue::String(value)
-            };
-
-            map.insert(name, json_value);
-        }
-
-        JsonValue::Object(map)
-    }
-
     /// 将批量记录转换为 NDJSON 格式（每行一个 JSON 对象）
     ///
     /// # Arguments
@@ -99,15 +61,7 @@ impl ClickHouseSink {
     /// # Returns
     /// * `SinkResult<String>` - NDJSON 字符串
     fn records_to_ndjson(&self, records: &[Arc<DataRecord>]) -> SinkResult<String> {
-        let json_lines: Vec<String> = records
-            .iter()
-            .map(|record| {
-                serde_json::to_string(&self.record_to_json(record.as_ref()))
-                    .map_err(|e| sink_error(format!("json serialization failed: {}", e)))
-            })
-            .collect::<SinkResult<Vec<_>>>()?;
-
-        Ok(json_lines.join("\n"))
+        Ok(fmt_strs(records.to_vec(), BatchFormat::Ndjson))
     }
 
     /// 执行批量插入请求（使用同步插入确保立即捕获错误）

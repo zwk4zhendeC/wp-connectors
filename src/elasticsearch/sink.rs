@@ -9,6 +9,7 @@
 //! - 支持负载均衡和故障转移
 
 use crate::elasticsearch::config::ElasticsearchSinkConfig;
+use crate::utils::fmt::{BatchFormat, fmt_bytes};
 use crate::utils::time_stat_utils::TimeStatUtils;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -19,7 +20,7 @@ use std::time::Duration;
 use wp_connector_api::{
     AsyncCtrl, AsyncRawDataSink, AsyncRecordSink, SinkError, SinkReason, SinkResult,
 };
-use wp_model_core::model::{DataRecord, DataType};
+use wp_model_core::model::DataRecord;
 
 // 全局原子计数器，用于生成唯一的实例 ID
 static INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -89,49 +90,15 @@ impl ElasticsearchSink {
         })
     }
 
-    /// 将 DataRecord 转换为 JSON 对象
-    ///
-    /// # Arguments
-    /// * `record` - 数据记录
-    ///
-    /// # Returns
-    /// * `serde_json::Value` - JSON 对象
-    fn record_to_json(&self, record: &DataRecord) -> serde_json::Value {
-        let mut map = serde_json::Map::new();
-
-        for field in &record.items {
-            if *field.get_meta() == DataType::Ignore {
-                continue;
-            }
-
-            let name = field.get_name().to_string();
-            let value = field.get_value();
-
-            let json_value = match value.to_string().parse::<i64>() {
-                Ok(i) => serde_json::Value::Number(i.into()),
-                Err(_) => match value.to_string().parse::<f64>() {
-                    Ok(f) => serde_json::Number::from_f64(f)
-                        .map(serde_json::Value::Number)
-                        .unwrap_or_else(|| serde_json::Value::String(value.to_string())),
-                    Err(_) => serde_json::Value::String(value.to_string()),
-                },
-            };
-
-            map.insert(name, json_value);
-        }
-
-        serde_json::Value::Object(map)
-    }
-
     /// 将批量记录转换为 NDJSON 格式（Bulk API 格式）
     ///
     /// # Arguments
     /// * `records` - 数据记录列表
     ///
     /// # Returns
-    /// * `SinkResult<String>` - NDJSON 字符串
-    fn records_to_ndjson(&self, records: &[Arc<DataRecord>]) -> SinkResult<String> {
-        let mut ndjson = String::new();
+    /// * `SinkResult<Vec<u8>>` - NDJSON 字节流
+    fn records_to_ndjson(&self, records: &[Arc<DataRecord>]) -> SinkResult<Vec<u8>> {
+        let mut ndjson = Vec::new();
 
         for record in records {
             // 操作行：指定索引操作
@@ -140,19 +107,15 @@ impl ElasticsearchSink {
                     "_index": &self.index
                 }
             });
-            ndjson.push_str(
-                &serde_json::to_string(&action).map_err(|e| {
-                    sink_error(format!("json serialization failed for action: {}", e))
-                })?,
-            );
-            ndjson.push('\n');
+            let action_bytes = serde_json::to_vec(&action)
+                .map_err(|e| sink_error(format!("json serialization failed for action: {}", e)))?;
+            ndjson.extend_from_slice(&action_bytes);
+            ndjson.push(b'\n');
 
             // 文档行：实际数据
-            let doc = self.record_to_json(record.as_ref());
-            ndjson.push_str(&serde_json::to_string(&doc).map_err(|e| {
-                sink_error(format!("json serialization failed for document: {}", e))
-            })?);
-            ndjson.push('\n');
+            let doc_bytes = fmt_bytes(vec![Arc::clone(record)], BatchFormat::Ndjson);
+            ndjson.extend_from_slice(&doc_bytes);
+            ndjson.push(b'\n');
         }
 
         Ok(ndjson)
@@ -165,7 +128,7 @@ impl ElasticsearchSink {
     ///
     /// # Returns
     /// * `SinkResult<()>` - 成功或错误
-    async fn bulk_request(&self, ndjson: String) -> SinkResult<()> {
+    async fn bulk_request(&self, ndjson: Vec<u8>) -> SinkResult<()> {
         let mut retries = 0;
         let max_retries = if self.max_retries < 0 {
             i32::MAX

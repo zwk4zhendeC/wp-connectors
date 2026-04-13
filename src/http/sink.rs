@@ -2,6 +2,7 @@
 ///
 /// This module provides the main HTTP Sink implementation for sending data to HTTP endpoints.
 use super::config::HttpSinkConfig;
+use crate::utils::fmt::{BatchFormat, fmt_bytes, fmt_bytes_kv_http};
 use crate::utils::time_stat_utils::TimeStatUtils;
 use async_trait::async_trait;
 use flate2::Compression;
@@ -14,7 +15,8 @@ use std::time::Duration;
 use wp_connector_api::{
     AsyncCtrl, AsyncRawDataSink, AsyncRecordSink, SinkError, SinkReason, SinkResult,
 };
-use wp_model_core::model::{DataRecord, DataType};
+use wp_data_fmt::Csv;
+use wp_model_core::model::DataRecord;
 
 // Global atomic counter for generating unique instance IDs
 static INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -79,17 +81,8 @@ impl HttpSink {
     ///
     /// Returns a Result containing the formatted string or an error
     fn format_record(&self, record: &DataRecord) -> SinkResult<String> {
-        match self.config.fmt.as_str() {
-            "json" | "ndjson" => self.format_record_json(record),
-            "csv" => self.format_record_csv(record),
-            "kv" => self.format_record_kv(record),
-            "raw" => self.format_record_raw(record),
-            "proto-text" => self.format_record_proto_text(record),
-            _ => Err(sink_error(format!(
-                "unsupported format: {}",
-                self.config.fmt
-            ))),
-        }
+        String::from_utf8(self.format_record_bytes(record)?)
+            .map_err(|e| sink_error(format!("formatted body is not valid UTF-8: {}", e)))
     }
 
     /// Format multiple DataRecords according to the configured format
@@ -102,52 +95,19 @@ impl HttpSink {
     ///
     /// Returns a Result containing the formatted string or an error
     fn format_records(&self, records: &[Arc<DataRecord>]) -> SinkResult<String> {
-        match self.config.fmt.as_str() {
-            "json" => {
-                // JSON format: array of JSON objects
-                let json_objects: Vec<serde_json::Value> = records
-                    .iter()
-                    .map(|record| {
-                        let json_str = self.format_record_json(record.as_ref())?;
-                        serde_json::from_str(&json_str)
-                            .map_err(|e| sink_error(format!("json parsing failed: {}", e)))
-                    })
-                    .collect::<SinkResult<Vec<_>>>()?;
+        String::from_utf8(self.format_records_bytes(records)?)
+            .map_err(|e| sink_error(format!("formatted body is not valid UTF-8: {}", e)))
+    }
 
-                serde_json::to_string(&json_objects)
-                    .map_err(|e| sink_error(format!("json array serialization failed: {}", e)))
-            }
-            "ndjson" => {
-                // NDJSON format: one JSON object per line
-                let mut lines = Vec::new();
-                for record in records {
-                    lines.push(self.format_record_json(record.as_ref())?);
-                }
-                Ok(lines.join("\n"))
-            }
-            "csv" => self.format_records_csv(records),
-            "kv" => {
-                let mut lines = Vec::new();
-                for record in records {
-                    lines.push(self.format_record_kv(record.as_ref())?);
-                }
-                Ok(lines.join("\n"))
-            }
-            "raw" => {
-                let mut lines = Vec::new();
-                for record in records {
-                    lines.push(self.format_record_raw(record.as_ref())?);
-                }
-                Ok(lines.join("\n"))
-            }
-            "proto-text" => {
-                let mut lines = Vec::new();
-                for record in records {
-                    lines.push(self.format_record_proto_text(record.as_ref())?);
-                }
-                // Proto-text 需要空行分隔记录
-                Ok(lines.join("\n\n"))
-            }
+    fn format_record_bytes(&self, record: &DataRecord) -> SinkResult<Vec<u8>> {
+        let records = vec![Arc::new(record.clone())];
+
+        match self.config.fmt.as_str() {
+            "json" | "ndjson" => Ok(fmt_bytes(records, BatchFormat::Ndjson)),
+            "csv" => Ok(fmt_bytes(records, BatchFormat::Csv(Csv::default()))),
+            "kv" => Ok(fmt_bytes_kv_http(records)),
+            "raw" => Ok(fmt_bytes(records, BatchFormat::Raw)),
+            "proto-text" => Ok(fmt_bytes(records, BatchFormat::ProtoText)),
             _ => Err(sink_error(format!(
                 "unsupported format: {}",
                 self.config.fmt
@@ -155,153 +115,21 @@ impl HttpSink {
         }
     }
 
-    /// Format a DataRecord as JSON
-    fn format_record_json(&self, record: &DataRecord) -> SinkResult<String> {
-        let mut map = serde_json::Map::new();
+    fn format_records_bytes(&self, records: &[Arc<DataRecord>]) -> SinkResult<Vec<u8>> {
+        let records = records.to_vec();
 
-        for field in &record.items {
-            if *field.get_meta() == DataType::Ignore {
-                continue;
-            }
-
-            let name = field.get_name().to_string();
-            let value = field.get_value();
-
-            // Try to infer numeric types
-            let json_value = match value.to_string().parse::<i64>() {
-                Ok(i) => serde_json::Value::Number(i.into()),
-                Err(_) => match value.to_string().parse::<f64>() {
-                    Ok(f) => serde_json::Number::from_f64(f)
-                        .map(serde_json::Value::Number)
-                        .unwrap_or_else(|| serde_json::Value::String(value.to_string())),
-                    Err(_) => serde_json::Value::String(value.to_string()),
-                },
-            };
-
-            map.insert(name, json_value);
+        match self.config.fmt.as_str() {
+            "json" => Ok(fmt_bytes(records, BatchFormat::Json)),
+            "ndjson" => Ok(fmt_bytes(records, BatchFormat::Ndjson)),
+            "csv" => Ok(fmt_bytes(records, BatchFormat::Csv(Csv::default()))),
+            "kv" => Ok(fmt_bytes_kv_http(records)),
+            "raw" => Ok(fmt_bytes(records, BatchFormat::Raw)),
+            "proto-text" => Ok(fmt_bytes(records, BatchFormat::ProtoText)),
+            _ => Err(sink_error(format!(
+                "unsupported format: {}",
+                self.config.fmt
+            ))),
         }
-
-        serde_json::to_string(&serde_json::Value::Object(map))
-            .map_err(|e| sink_error(format!("json serialization failed: {}", e)))
-    }
-
-    /// Format a DataRecord as CSV (single row with header)
-    fn format_record_csv(&self, record: &DataRecord) -> SinkResult<String> {
-        let mut headers = Vec::new();
-        let mut values = Vec::new();
-
-        for field in &record.items {
-            if *field.get_meta() == DataType::Ignore {
-                continue;
-            }
-
-            headers.push(field.get_name().to_string());
-            values.push(self.escape_csv_value(&field.get_value().to_string()));
-        }
-
-        Ok(format!("{}\n{}", headers.join(","), values.join(",")))
-    }
-
-    /// Format multiple DataRecords as CSV (header row + data rows)
-    fn format_records_csv(&self, records: &[Arc<DataRecord>]) -> SinkResult<String> {
-        if records.is_empty() {
-            return Ok(String::new());
-        }
-
-        let mut output = String::new();
-
-        // Generate header row from first record
-        let first_record = &records[0];
-        let mut headers = Vec::new();
-        for field in &first_record.items {
-            if *field.get_meta() == DataType::Ignore {
-                continue;
-            }
-            headers.push(field.get_name().to_string());
-        }
-        output.push_str(&headers.join(","));
-        output.push('\n');
-
-        // Generate data rows
-        for record in records {
-            let mut values = Vec::new();
-            for field in &record.items {
-                if *field.get_meta() == DataType::Ignore {
-                    continue;
-                }
-                values.push(self.escape_csv_value(&field.get_value().to_string()));
-            }
-            output.push_str(&values.join(","));
-            output.push('\n');
-        }
-
-        Ok(output)
-    }
-
-    /// Escape CSV value (wrap in quotes if contains comma, quote, or newline)
-    fn escape_csv_value(&self, value: &str) -> String {
-        if value.contains(',') || value.contains('"') || value.contains('\n') {
-            format!("\"{}\"", value.replace('"', "\"\""))
-        } else {
-            value.to_string()
-        }
-    }
-
-    /// Format a DataRecord as key-value pairs
-    fn format_record_kv(&self, record: &DataRecord) -> SinkResult<String> {
-        let mut pairs = Vec::new();
-
-        for field in &record.items {
-            if *field.get_meta() == DataType::Ignore {
-                continue;
-            }
-
-            let name = field.get_name();
-            let value = field.get_value().to_string();
-            pairs.push(format!("{}={}", name, value));
-        }
-
-        Ok(pairs.join(" "))
-    }
-
-    /// Format a DataRecord as raw values (space-separated)
-    fn format_record_raw(&self, record: &DataRecord) -> SinkResult<String> {
-        let mut values = Vec::new();
-
-        for field in &record.items {
-            if *field.get_meta() == DataType::Ignore {
-                continue;
-            }
-
-            values.push(field.get_value().to_string());
-        }
-
-        Ok(values.join(" "))
-    }
-
-    /// Format a DataRecord as Protocol Buffer text format
-    fn format_record_proto_text(&self, record: &DataRecord) -> SinkResult<String> {
-        let mut lines = Vec::new();
-
-        for field in &record.items {
-            if *field.get_meta() == DataType::Ignore {
-                continue;
-            }
-
-            let name = field.get_name();
-            let value = field.get_value().to_string();
-
-            // Quote string values in proto-text format
-            let formatted_value = if value.parse::<i64>().is_ok() || value.parse::<f64>().is_ok() {
-                value
-            } else {
-                format!("\"{}\"", value)
-            };
-
-            lines.push(format!("{}: {}", name, formatted_value));
-        }
-
-        Ok(lines.join("\n"))
     }
 
     /// Compress data using the configured compression algorithm
@@ -601,10 +429,10 @@ impl AsyncRecordSink for HttpSink {
         self.time_stats.start_stat(1);
 
         // Format the single DataRecord according to configured format
-        let formatted = self.format_record(data)?;
+        let formatted = self.format_record_bytes(data)?;
 
         // Compress data if compression is enabled
-        let body = self.compress_data(formatted.as_bytes())?;
+        let body = self.compress_data(&formatted)?;
 
         // Send HTTP request with retry logic
         let result = self.send_with_retry(body).await;
@@ -639,10 +467,10 @@ impl AsyncRecordSink for HttpSink {
         self.time_stats.start_stat(data.len() as u64);
 
         // Format the batch of DataRecords according to configured format
-        let formatted = self.format_records(&data)?;
-
+        let formatted = self.format_records_bytes(&data)?;
+        // println!("{}", String::from_utf8(formatted.clone()).unwrap());
         // Compress data if compression is enabled
-        let body = self.compress_data(formatted.as_bytes())?;
+        let body = self.compress_data(&formatted)?;
 
         // Send HTTP request with retry logic
         let result = self.send_with_retry(body).await;
@@ -1059,7 +887,7 @@ mod tests {
 
         let kv_str = result.unwrap();
         assert!(kv_str.contains("id=123"));
-        assert!(kv_str.contains("name=test"));
+        assert!(kv_str.contains("name=\"test\""));
     }
 
     #[tokio::test]

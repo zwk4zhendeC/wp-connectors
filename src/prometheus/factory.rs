@@ -9,8 +9,9 @@ use wp_connector_api::{
 
 use super::config::Prometheus;
 use super::exporter::PrometheusExporter;
+use sysinfo::System;
 
-struct PrometheusFactory;
+pub struct PrometheusFactory;
 
 #[async_trait]
 impl SinkFactory for PrometheusFactory {
@@ -33,16 +34,6 @@ impl SinkFactory for PrometheusFactory {
         if let Some(s) = spec.params.get("endpoint").and_then(|v| v.as_str()) {
             conf.endpoint = s.to_string();
         }
-        if let Some(s) = spec
-            .params
-            .get("source_key_format")
-            .and_then(|v| v.as_str())
-        {
-            conf.source_key_format = s.to_string();
-        }
-        if let Some(s) = spec.params.get("sink_key_format").and_then(|v| v.as_str()) {
-            conf.sink_key_format = s.to_string();
-        }
         let endpoint = conf.endpoint.clone();
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
@@ -51,8 +42,7 @@ impl SinkFactory for PrometheusFactory {
             });
         });
         let sink = PrometheusExporter {
-            source_key_format: conf.source_key_format.clone(),
-            sink_key_format: conf.sink_key_format.clone(),
+            system: System::new(),
         };
         Ok(SinkHandle::new(Box::new(sink)))
     }
@@ -64,10 +54,7 @@ impl SinkDefProvider for PrometheusFactory {
             id: "prometheus_sink".into(),
             kind: self.kind().into(),
             scope: ConnectorScope::Sink,
-            allow_override: vec!["endpoint", "source_key_format", "sink_key_format"]
-                .into_iter()
-                .map(str::to_string)
-                .collect(),
+            allow_override: vec!["endpoint"].into_iter().map(str::to_string).collect(),
             default_params: prometheus_defaults(),
             origin: Some("wp-connectors:prometheus_sink".into()),
         }
@@ -77,7 +64,5 @@ impl SinkDefProvider for PrometheusFactory {
 fn prometheus_defaults() -> ParamMap {
     let mut params = ParamMap::new();
     params.insert("endpoint".into(), json!("0.0.0.0:9898"));
-    params.insert("source_key_format".into(), json!("source"));
-    params.insert("sink_key_format".into(), json!("sink"));
     params
 }
