@@ -53,43 +53,43 @@ impl VictoriaMetricExporter {
         Self::push_metrics(&self.client, &self.insert_url, ts_ms).await
     }
 
-    // pub(crate) fn start_flush_task(&mut self) {
-    //     if self.flush_interval.is_zero() {
-    //         error_data!("VictoriaMetric flush interval is zero; skip scheduling.");
-    //         return;
-    //     }
-    //     let (stop_tx, mut stop_rx) = oneshot::channel();
-    //     let mut runner = self.clone();
-    //     let interval = self.flush_interval;
-    //     let handle = tokio::spawn(async move {
-    //         let mut ticker = tokio::time::interval(interval);
-    //         // flush task 自己维护已推送的秒级时间戳，确保同一秒内不重复推送。
-    //         let mut last_pushed_sec: i64 = 0;
-    //         loop {
-    //             tokio::select! {
-    //                 _ = ticker.tick() => {
-    //                     let curr_sec = SystemTime::now()
-    //                         .duration_since(UNIX_EPOCH)
-    //                         .map(|d| d.as_secs() as i64)
-    //                         .unwrap_or(0);
-    //                     if curr_sec <= last_pushed_sec {
-    //                         continue;
-    //                     }
-    //                     last_pushed_sec = curr_sec;
-    //                     // CPU/内存统计在此统一刷新，避免在每条 DataRecord 中触发
-    //                     // sysinfo 系统调用（flush 间隔即采样间隔）。
-    //                     system_usage_stat(&mut runner.system);
-    //                     if let Err(err) = runner.save_metric_to_victoriametric(Some(curr_sec * 1000)).await {
-    //                         error_data!("VictoriaMetric periodic push failed: {}", err);
-    //                     }
-    //                 }
-    //                 _ = &mut stop_rx => break,
-    //             }
-    //         }
-    //     });
-    //     self.stop_tx = Some(stop_tx);
-    //     self.flush_handle = Some(handle);
-    // }
+    pub(crate) fn start_flush_task(&mut self) {
+        if self.flush_interval.is_zero() {
+            error_data!("VictoriaMetric flush interval is zero; skip scheduling.");
+            return;
+        }
+        let (stop_tx, mut stop_rx) = oneshot::channel();
+        let mut runner = self.clone();
+        let interval = self.flush_interval;
+        let handle = tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            // flush task 自己维护已推送的纳秒级时间戳，确保同一秒内不重复推送。
+            let mut last_pushed_sec: i64 = 0;
+            loop {
+                tokio::select! {
+                    _ = ticker.tick() => {
+                        let curr_sec = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .map(|d| d.as_nanos() as i64)
+                            .unwrap_or(0);
+                        if curr_sec <= last_pushed_sec {
+                            continue;
+                        }
+                        last_pushed_sec = curr_sec;
+                        // CPU/内存统计在此统一刷新，避免在每条 DataRecord 中触发
+                        // sysinfo 系统调用（flush 间隔即采样间隔）。
+                        system_usage_stat(&mut runner.system);
+                        if let Err(err) = runner.save_metric_to_victoriametric(Some(curr_sec * 1000)).await {
+                            error_data!("VictoriaMetric periodic push failed: {}", err);
+                        }
+                    }
+                    _ = &mut stop_rx => break,
+                }
+            }
+        });
+        self.stop_tx = Some(stop_tx);
+        self.flush_handle = Some(handle);
+    }
 
     async fn stop_flush_task(&mut self) {
         if let Err(err) = self.save_metric_to_victoriametric(None).await {
@@ -158,28 +158,6 @@ impl VictoriaMetricExporter {
     }
 }
 
-// fn append_timestamp_to_each_sample(input: &[u8], ts_ms: i64) -> Vec<u8> {
-//     let src = String::from_utf8_lossy(input);
-//     let mut out = String::with_capacity(src.len() + 128);
-//     let ts = ts_ms.to_string();
-
-//     for line in src.lines() {
-//         let trimmed = line.trim();
-//         if trimmed.is_empty() || trimmed.starts_with('#') {
-//             out.push_str(line);
-//             out.push('\n');
-//             continue;
-//         }
-//         // TextEncoder 输出格式为 "metric{labels} value"，直接追加时间戳即可。
-//         out.push_str(line);
-//         out.push(' ');
-//         out.push_str(&ts);
-//         out.push('\n');
-//     }
-
-//     out.into_bytes()
-// }
-
 #[async_trait]
 impl wp_connector_api::AsyncRecordSink for VictoriaMetricExporter {
     /// 只负责按 stage 更新 Prometheus counter，不再触发推送。
@@ -199,11 +177,6 @@ impl wp_connector_api::AsyncRecordSink for VictoriaMetricExporter {
                 }
                 _ => {}
             }
-        }
-        // 处理 end_time 字段，触发数据推送。
-        if let Some(Value::Digit(field)) = data.get2("end_time").map(|x| x.get_value()) {
-            system_usage_stat(&mut self.system);
-            self.save_metric_to_victoriametric(Some(*field)).await?;
         }
         Ok(())
     }
