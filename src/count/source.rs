@@ -66,12 +66,12 @@ impl DataSource for CountSource {
             return Err(SourceReason::EOF.into());
         }
         // 距离上次间隔
-        if !self.interval.is_zero() {
-            if let Some(last_emit_at) = self.last_emit_at {
-                let elapsed = last_emit_at.elapsed();
-                if elapsed < self.interval {
-                    tokio::time::sleep(self.interval - elapsed).await;
-                }
+        if !self.interval.is_zero()
+            && let Some(last_emit_at) = self.last_emit_at
+        {
+            let elapsed = last_emit_at.elapsed();
+            if elapsed < self.interval {
+                tokio::time::sleep(self.interval - elapsed).await;
             }
         }
         println!(
