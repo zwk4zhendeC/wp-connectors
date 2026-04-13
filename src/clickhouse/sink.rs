@@ -93,8 +93,8 @@ impl ClickHouseSink {
             match self
                 .client
                 .query(&query)
-                .with_option("async_insert", "0")
-                .with_option("wait_for_async_insert", "0")
+                .with_setting("async_insert", "0")
+                .with_setting("wait_for_async_insert", "0")
                 .execute()
                 .await
             {

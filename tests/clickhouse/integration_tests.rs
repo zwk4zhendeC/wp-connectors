@@ -12,7 +12,6 @@ use crate::common::{
     sink::{integration_runtime::SinkIntegrationRuntime, sink_info::SinkInfo},
 };
 
-#[ignore]
 #[tokio::test]
 #[ignore = "集成测试默认忽略，请按需手动执行"]
 async fn test_clickhouse_sink_full_integration() -> Result<()> {
