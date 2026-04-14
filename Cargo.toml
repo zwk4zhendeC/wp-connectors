@@ -99,7 +99,7 @@ victoriametrics = [
 doris = ["dep:reqwest"]
 elasticsearch = ["dep:reqwest"]
 clickhouse = ["dep:reqwest", "dep:clickhouse"]
-http = ["dep:reqwest", "dep:flate2", "dep:base64"]
+http = ["dep:reqwest", "dep:flate2", "dep:base64", "dep:actix-web"]
 full = ["kafka", "mysql", "postgres", "prometheus", "elasticsearch", "clickhouse", "victoriametrics", "victorialogs", "doris", "http"]
 
 [dependencies]
@@ -151,6 +151,7 @@ quickcheck = "1.0"
 quickcheck_macros = "1.0"
 rand = { workspace = true }
 sqlx = { workspace = true }
+async-broadcast = "0.7"
 sysinfo = { version = "0.38", default-features = false, features = ["system"] }
 # criterion = { version = "0.5", features = ["async_tokio"] }
 
