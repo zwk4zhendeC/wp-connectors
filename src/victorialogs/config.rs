@@ -4,7 +4,7 @@ use serde::Serialize;
 #[derive(Educe, Deserialize, Serialize, PartialEq, Clone)]
 #[educe(Debug, Default)]
 pub struct VictoriaLog {
-    #[educe(Default = "127.0.0.1:9428")]
+    #[educe(Default = "http://127.0.0.1:9428")]
     pub endpoint: String,
     #[educe(Default = "/insert/jsonline")]
     pub insert_path: String,

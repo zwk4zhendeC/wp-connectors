@@ -18,13 +18,14 @@ impl SinkFactory for VictoriaMetricFactory {
         "victoriametrics"
     }
     fn validate_spec(&self, spec: &SinkSpec) -> SinkResult<()> {
-        let endpoint = spec
+        let insert_url = spec
             .params
-            .get("endpoint")
+            .get("insert_url")
             .and_then(|v| v.as_str())
+            .or_else(|| spec.params.get("endpoint").and_then(|v| v.as_str()))
             .unwrap_or("");
-        if endpoint.trim().is_empty() {
-            return Err(SinkReason::sink("victoriametric.endpoint must not be empty").into());
+        if insert_url.trim().is_empty() {
+            return Err(SinkReason::sink("victoriametrics.insert_url must not be empty").into());
         }
         Ok(())
     }
@@ -41,7 +42,12 @@ impl SinkFactory for VictoriaMetricFactory {
                 conf.flush_interval_secs = n;
             }
         }
-        if let Some(s) = spec.params.get("insert_url").and_then(|v| v.as_str()) {
+        if let Some(s) = spec
+            .params
+            .get("insert_url")
+            .and_then(|v| v.as_str())
+            .or_else(|| spec.params.get("endpoint").and_then(|v| v.as_str()))
+        {
             conf.insert_url = s.to_string();
         }
 
@@ -67,24 +73,85 @@ impl SinkFactory for VictoriaMetricFactory {
 impl SinkDefProvider for VictoriaMetricFactory {
     fn sink_def(&self) -> ConnectorDef {
         ConnectorDef {
-            id: "victoriametric_sink".into(),
+            id: "victoriametrics_sink".into(),
             kind: self.kind().into(),
             scope: ConnectorScope::Sink,
-            allow_override: vec!["endpoint", "flush_interval_secs"]
+            allow_override: vec!["insert_url", "flush_interval_secs"]
                 .into_iter()
                 .map(str::to_string)
                 .collect(),
             default_params: victoriametric_defaults(),
-            origin: Some("wp-connectors:victoriametric_sink".into()),
+            origin: Some("wp-connectors:victoriametrics_sink".into()),
         }
     }
 }
 
 fn victoriametric_defaults() -> ParamMap {
     let mut params = ParamMap::new();
-    params.insert("endpoint".into(), json!("http://localhost:8480"));
+    params.insert(
+        "insert_url".into(),
+        json!("http://127.0.0.1:8428/api/v1/import/prometheus"),
+    );
     // flush_interval_secs 决定推送到 VictoriaMetrics 的时间分辨率，
     // 1s 可获得秒级数据点，适合 rate([20s+]) 的稳定计算。
-    params.insert("flush_interval_secs".into(), json!(1.0));
+    params.insert("flush_interval_secs".into(), json!(1));
     params
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn sink_spec(params: &[(&str, serde_json::Value)]) -> SinkSpec {
+        let mut map = ParamMap::new();
+        for (key, value) in params {
+            map.insert((*key).to_string(), value.clone());
+        }
+        SinkSpec {
+            group: "g".into(),
+            name: "vm".into(),
+            kind: "victoriametrics".into(),
+            connector_id: "victoriametrics_sink".into(),
+            params: map,
+            filter: None,
+        }
+    }
+
+    #[test]
+    fn sink_def_matches_official_template() {
+        let def = VictoriaMetricFactory.sink_def();
+        assert_eq!(def.id, "victoriametrics_sink");
+        assert_eq!(
+            def.allow_override,
+            vec!["insert_url".to_string(), "flush_interval_secs".to_string()]
+        );
+        assert_eq!(
+            def.default_params
+                .get("insert_url")
+                .and_then(|v| v.as_str()),
+            Some("http://127.0.0.1:8428/api/v1/import/prometheus")
+        );
+        assert_eq!(
+            def.default_params
+                .get("flush_interval_secs")
+                .and_then(|v| v.as_i64()),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn validate_accepts_insert_url() {
+        let spec = sink_spec(&[(
+            "insert_url",
+            json!("http://127.0.0.1:8428/api/v1/import/prometheus"),
+        )]);
+        assert!(VictoriaMetricFactory.validate_spec(&spec).is_ok());
+    }
+
+    #[test]
+    fn validate_keeps_legacy_endpoint_compatible() {
+        let spec = sink_spec(&[("endpoint", json!("http://localhost:8480"))]);
+        assert!(VictoriaMetricFactory.validate_spec(&spec).is_ok());
+    }
 }

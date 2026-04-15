@@ -95,30 +95,53 @@ impl SinkFactory for VictoriaLogSinkFactory {
 impl SinkDefProvider for VictoriaLogSinkFactory {
     fn sink_def(&self) -> ConnectorDef {
         ConnectorDef {
-            id: "victorialog_sink".into(),
+            id: "victorialogs_sink".into(),
             kind: self.kind().into(),
             scope: ConnectorScope::Sink,
-            allow_override: vec![
-                "endpoint",
-                "insert_path",
-                "fmt",
-                "request_timeout_secs",
-                "tags",
-            ]
-            .into_iter()
-            .map(str::to_string)
-            .collect(),
+            allow_override: vec!["endpoint", "insert_path", "create_time_field", "tags"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
             default_params: victorialog_defaults(),
-            origin: Some("wp-connectors:victorialog_sink".into()),
+            origin: Some("wp-connectors:victorialogs_sink".into()),
         }
     }
 }
 
 fn victorialog_defaults() -> ParamMap {
     let mut params = ParamMap::new();
-    params.insert("endpoint".into(), json!("http://localhost:8481"));
-    params.insert("insert_path".into(), json!("/insert/json"));
-    params.insert("fmt".into(), json!("json"));
-    params.insert("request_timeout_secs".into(), json!(60.0));
+    params.insert("endpoint".into(), json!("http://127.0.0.1:9428"));
+    params.insert("insert_path".into(), json!("/insert/jsonline"));
     params
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sink_def_matches_official_template() {
+        let def = VictoriaLogSinkFactory.sink_def();
+        assert_eq!(def.id, "victorialogs_sink");
+        assert_eq!(
+            def.allow_override,
+            vec![
+                "endpoint".to_string(),
+                "insert_path".to_string(),
+                "create_time_field".to_string(),
+                "tags".to_string(),
+            ]
+        );
+        assert_eq!(
+            def.default_params.get("endpoint").and_then(|v| v.as_str()),
+            Some("http://127.0.0.1:9428")
+        );
+        assert_eq!(
+            def.default_params
+                .get("insert_path")
+                .and_then(|v| v.as_str()),
+            Some("/insert/jsonline")
+        );
+        assert!(!def.default_params.contains_key("flush_interval_secs"));
+    }
 }
