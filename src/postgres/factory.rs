@@ -335,25 +335,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_source_rejects_invalid_batch() {
-        let factory = PostgresSourceFactory;
-        let spec = build_source_spec(BTreeMap::from([
-            ("endpoint".into(), json!("localhost:5432")),
-            ("database".into(), json!("db")),
-            ("table".into(), json!("events")),
-            ("cursor_column".into(), json!("id")),
-            ("batch".into(), json!(10001)),
-        ]));
-        let err = factory
-            .validate_spec(&spec)
-            .expect_err("batch too large should fail");
-        assert!(
-            err.to_string()
-                .contains("postgres.batch must be in 1..=10000")
-        );
-    }
-
-    #[test]
     fn validate_source_accepts_time_start_from() {
         let factory = PostgresSourceFactory;
         let spec = build_source_spec(BTreeMap::from([

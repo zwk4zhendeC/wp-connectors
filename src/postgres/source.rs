@@ -1251,10 +1251,99 @@ mod tests {
         );
     }
 
+    /// 验证 `timestamp without time zone` 也能作为 `time` 游标。
+    #[test]
+    fn time_cursor_accepts_timestamp_without_time_zone() {
+        assert_eq!(
+            CursorType::Time
+                .lower_bound_binding("create_time", "timestamp without time zone")
+                .unwrap(),
+            LowerBoundBinding::TextParamWithCast("timestamp")
+        );
+    }
+
     /// 验证纯 `time` 列不会被当成可用的增量时间游标。
     #[test]
     fn time_lower_bound_cast_rejects_plain_time_type() {
         assert_eq!(time_lower_bound_cast("time without time zone"), None);
+    }
+
+    /// 验证不支持的游标类型会在配置校验阶段被拒绝。
+    #[test]
+    fn validate_source_rejects_unsupported_cursor_type() {
+        let err = validate_source_cursor_type_and_start_from("text", None, None)
+            .expect_err("unsupported cursor_type should fail");
+        assert!(err.to_string().contains("unsupported postgres cursor_type"));
+    }
+
+    /// 验证单独配置 `start_from_format` 会被拒绝。
+    #[test]
+    fn validate_source_requires_start_from_when_format_is_present() {
+        let err = validate_source_cursor_type_and_start_from("time", None, Some("unix_s"))
+            .expect_err("missing start_from should fail");
+        assert!(
+            err.to_string()
+                .contains("postgres.start_from_format requires postgres.start_from")
+        );
+    }
+
+    /// 验证 `int` 游标不允许配置 `start_from_format`。
+    #[test]
+    fn validate_source_rejects_start_from_format_for_int_cursor() {
+        let err = validate_source_cursor_type_and_start_from("int", Some("100"), Some("unix_s"))
+            .expect_err("int cursor with start_from_format should fail");
+        assert!(
+            err.to_string()
+                .contains("postgres.start_from_format is only supported for time cursor")
+        );
+    }
+
+    /// 验证空白 `start_from` 会在配置校验阶段被拒绝。
+    #[test]
+    fn validate_source_rejects_empty_start_from() {
+        let err = validate_source_cursor_type_and_start_from("time", Some("   "), None)
+            .expect_err("empty start_from should fail");
+        assert!(
+            err.to_string()
+                .contains("postgres.start_from must not be empty")
+        );
+    }
+
+    /// 验证整数游标不能绑定到非数值列类型。
+    #[test]
+    fn int_cursor_rejects_non_numeric_column_type() {
+        let err = CursorType::Int
+            .lower_bound_binding("event_id", "uuid")
+            .expect_err("uuid should not be accepted by int cursor");
+        assert!(err.to_string().contains("must be numeric-like"));
+    }
+
+    /// 验证时间游标不能绑定到非时间列类型。
+    #[test]
+    fn time_cursor_rejects_non_temporal_column_type() {
+        let err = CursorType::Time
+            .lower_bound_binding("create_time", "text")
+            .expect_err("text should not be accepted by time cursor");
+        assert!(err.to_string().contains("must be timestamp/date-like"));
+    }
+
+    /// 验证 `start_from_format` 能识别 Unix 别名和自定义 pattern。
+    #[test]
+    fn parse_start_from_format_accepts_unix_alias_and_pattern() {
+        assert_eq!(
+            parse_start_from_format(Some("unix"), CursorType::Time).unwrap(),
+            Some(StartFromFormat {
+                raw: "unix".into(),
+                kind: StartFromFormatKind::UnixSeconds,
+            })
+        );
+        assert_eq!(
+            parse_start_from_format(Some("%Y-%m-%d"), CursorType::Time).unwrap(),
+            Some(StartFromFormat {
+                raw: "%Y-%m-%d".into(),
+                kind: StartFromFormatKind::Pattern,
+            })
+        );
     }
 
     /// 验证 `timestamptz` 在接收 Unix 秒时，会按 session 时区展开成下界字符串。
@@ -1289,6 +1378,22 @@ mod tests {
         assert_eq!(normalized, "2026-04-16 16:31:25.000000");
     }
 
+    /// 验证 `timestamp` 支持按纯日期 pattern 解析，并补齐到当天零点。
+    #[test]
+    fn normalize_timestamp_start_from_accepts_date_only_pattern() {
+        let offset = FixedOffset::east_opt(8 * 3600).unwrap();
+        let normalized = normalize_timestamp_start_from(
+            "2026-04-16",
+            Some(&StartFromFormat {
+                raw: "%Y-%m-%d".into(),
+                kind: StartFromFormatKind::Pattern,
+            }),
+            offset,
+        )
+        .unwrap();
+        assert_eq!(normalized, "2026-04-16 00:00:00.000000");
+    }
+
     /// 验证带时区输入写入 `timestamptz` 时会保留用户原始时区语义。
     #[test]
     fn normalize_timestamptz_start_from_keeps_input_timezone() {
@@ -1296,6 +1401,22 @@ mod tests {
         let normalized =
             normalize_timestamptz_start_from("2026-04-16T16:31:25+08:00", None, session_offset)
                 .unwrap();
+        assert_eq!(normalized, "2026-04-16T16:31:25.000000+08:00");
+    }
+
+    /// 验证无时区时间按显式 pattern 解析到 `timestamptz` 时，会绑定当前 session 时区。
+    #[test]
+    fn normalize_timestamptz_start_from_binds_session_timezone_for_naive_pattern() {
+        let offset = FixedOffset::east_opt(8 * 3600).unwrap();
+        let normalized = normalize_timestamptz_start_from(
+            "2026-04-16 16:31:25",
+            Some(&StartFromFormat {
+                raw: "%Y-%m-%d %H:%M:%S".into(),
+                kind: StartFromFormatKind::Pattern,
+            }),
+            offset,
+        )
+        .unwrap();
         assert_eq!(normalized, "2026-04-16T16:31:25.000000+08:00");
     }
 
@@ -1402,6 +1523,20 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// 验证空 checkpoint 文件会被视为“当前没有 checkpoint”。
+    #[test]
+    fn load_checkpoint_returns_none_for_empty_file() {
+        let path = temp_checkpoint_path("empty");
+        std::fs::write(&path, "").unwrap();
+
+        let cursor_plan = integer_cursor_plan();
+        let checkpoint = PostgresSource::load_checkpoint(&path, "id", &cursor_plan)
+            .expect("empty checkpoint should load as none");
+        assert_eq!(checkpoint, None);
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// 验证检查点中的游标列与当前配置不一致时，会返回带路径与修复提示的错误。
     #[test]
     fn load_checkpoint_reports_incompatible_cursor_column_with_path_and_hint() {
@@ -1423,6 +1558,27 @@ mod tests {
         assert!(err_text.contains("cursor_column mismatch"));
         assert!(err_text.contains(&path.display().to_string()));
         assert!(err_text.contains("delete this checkpoint and restart"));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// 验证 checkpoint 版本不匹配时会被拒绝。
+    #[test]
+    fn load_checkpoint_rejects_version_mismatch() {
+        let path = temp_checkpoint_path("version-mismatch");
+        let content = r#"{
+  "version": 999,
+  "cursor_type": "int",
+  "cursor_column": "id",
+  "last_cursor_raw": "42",
+  "updated_at": "2026-04-16T00:00:00Z"
+}"#;
+        std::fs::write(&path, content).unwrap();
+
+        let cursor_plan = integer_cursor_plan();
+        let err = PostgresSource::load_checkpoint(&path, "id", &cursor_plan)
+            .expect_err("mismatched checkpoint version should fail");
+        assert!(err.to_string().contains("version mismatch"));
 
         let _ = std::fs::remove_file(&path);
     }
