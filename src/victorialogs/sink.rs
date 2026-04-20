@@ -69,14 +69,17 @@ impl VictoriaLogSink {
     }
 
     async fn send_payload(&self, payload: String) -> SinkResult<()> {
+        let client = &self.client;
+        let endpoint = &self.endpoint;
+        let insert_path = &self.insert_path;
         // 重试次数
         const MAX_ATTEMPTS: usize = 3;
         // 是重试之间的退避时间
         const BACKOFF_MS: [u64; 2] = [200, 500];
-        let url = format!("{}{}", self.endpoint, self.insert_path);
+        let url = format!("{}{}", endpoint, insert_path);
 
         for attempt in 0..MAX_ATTEMPTS {
-            match self.client.post(&url).body(payload.clone()).send().await {
+            match client.post(&url).body(payload.clone()).send().await {
                 Ok(resp) => {
                     let status = resp.status();
                     if status.is_success() {
