@@ -36,9 +36,9 @@ fn build_http_log_record(idx: usize) -> Value {
     json!({
         "event_id": idx + 1,
         "service": "edge-gateway",
-        "method": if idx % 2 == 0 { "GET" } else { "POST" },
+        "method": if idx.is_multiple_of(2) { "GET" } else { "POST" },
         "path": format!("/api/v1/orders/{}", 1000 + idx),
-        "status": if idx % 3 == 0 { 200 } else { 201 },
+        "status": if idx.is_multiple_of(3) { 200 } else { 201 },
         "latency_ms": 12 + idx,
         "client_ip": format!("10.0.0.{}", 10 + idx),
         "user_agent": "integration-test-client/1.0",
