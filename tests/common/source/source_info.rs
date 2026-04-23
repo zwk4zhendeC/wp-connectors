@@ -35,9 +35,8 @@ pub type AsyncWaitReadyFn =
 pub type AsyncInputFn =
     Box<dyn Fn(ParamMap) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
 
-pub type AsyncAssertFn = Box<
-    dyn Fn(SourceRunContext) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync,
->;
+pub type AsyncAssertFn =
+    Box<dyn Fn(SourceRunContext) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SourceRunPhase {

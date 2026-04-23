@@ -181,9 +181,7 @@ async fn close_all_sources(sources: &mut [SourceHandle]) -> Result<()> {
 
 fn is_not_data_error(message: &str) -> bool {
     let lower = message.to_ascii_lowercase();
-    lower.contains("notdata")
-        || lower.contains("not data")
-        || lower.contains("no message received")
+    lower.contains("notdata") || lower.contains("not data") || lower.contains("no message received")
 }
 
 fn is_eof_error(message: &str) -> bool {
