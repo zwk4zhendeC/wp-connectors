@@ -7,8 +7,8 @@ use std::time::Duration;
 use anyhow::Result;
 use flate2::{Compression, write::GzEncoder};
 use serde_json::{Value, json};
-use wp_connectors::http::HttpSourceFactory;
 use wp_connector_api::ParamMap;
+use wp_connectors::http::HttpSourceFactory;
 
 use crate::common::{
     component_tools::{ShellScriptRestart, ShellScriptTool},
@@ -71,11 +71,7 @@ fn create_request_body(fmt: &str, count: usize, gzip: bool) -> Result<Vec<u8>> {
         other => anyhow::bail!("unsupported http source test fmt: {other}"),
     };
 
-    if gzip {
-        gzip_bytes(&body)
-    } else {
-        Ok(body)
-    }
+    if gzip { gzip_bytes(&body) } else { Ok(body) }
 }
 
 struct HttpSourceScenario {
@@ -153,16 +149,20 @@ async fn test_http_source_basic_integration() -> Result<()> {
                         // “最多重试 20 次”。
                         // 一旦 endpoint 返回 200 + OK，就立即退出，所以正常只会成功发送 1 次请求。
                         for _ in 0..20 {
-                            match client.post(&endpoint).body(request_body.clone()).send().await {
+                            match client
+                                .post(&endpoint)
+                                .body(request_body.clone())
+                                .send()
+                                .await
+                            {
                                 Ok(response) => {
                                     let status = response.status();
                                     let body = response.text().await.unwrap_or_default();
                                     if status.is_success() && body == "OK" {
                                         return Ok(expected_count);
                                     }
-                                    last_error = Some(format!(
-                                        "unexpected response: {status}, body={body}"
-                                    ));
+                                    last_error =
+                                        Some(format!("unexpected response: {status}, body={body}"));
                                 }
                                 Err(err) => {
                                     last_error = Some(err.to_string());
