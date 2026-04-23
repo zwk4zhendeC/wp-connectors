@@ -14,4 +14,5 @@
 ))]
 
 pub mod component_tools;
+pub mod source;
 pub mod sink;
