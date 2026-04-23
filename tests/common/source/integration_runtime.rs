@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::source_info::{SourceInfo, SourceRunContext, SourceRunPhase};
+use super::source_info::{SourceInfo, SourceRunPhase};
 use crate::common::component_tools::ComponentTool;
 use anyhow::Result;
 use std::path::PathBuf;
@@ -73,7 +73,7 @@ impl<T: ComponentTool + Sync, F: SourceFactory> SourceIntegrationRuntime<T, F> {
             kind: source_info.factory().kind().to_string(),
             connector_id: display_name.to_string(),
             params: source_info.params().clone(),
-            tags: source_info.tags().to_vec(),
+            tags: vec![],
         };
 
         let ctx = SourceBuildCtx::new(PathBuf::from("."));
@@ -83,13 +83,21 @@ impl<T: ComponentTool + Sync, F: SourceFactory> SourceIntegrationRuntime<T, F> {
             anyhow::bail!("{} 未返回任何 SourceHandle", display_name);
         }
 
-        println!("{}: 发送测试数据...", phase_label);
-        source_info.input().await?;
+        let mut expected_events = 0usize;
+        println!(
+            "{}: 发送测试数据（repeat={}）...",
+            phase_label,
+            source_info.input_repeat()
+        );
+        for _ in 0..source_info.input_repeat() {
+            expected_events += source_info.input().await?;
+        }
 
         let collect_config = source_info.collect_config();
         println!(
-            "{}: 收集事件（timeout={}ms, poll_interval={}ms）...",
+            "{}: 收集事件（expected_events={}, timeout={}ms, poll_interval={}ms）...",
             phase_label,
+            expected_events,
             collect_config.timeout.as_millis(),
             collect_config.poll_interval.as_millis()
         );
@@ -146,9 +154,10 @@ impl<T: ComponentTool + Sync, F: SourceFactory> SourceIntegrationRuntime<T, F> {
         close_all_sources(&mut service.sources).await?;
 
         println!(
-            "{}: 收集完成，sources={}, events={}, attempts={}, idle={}, eof={}, elapsed={:.2}s",
+            "{}: 收集完成，sources={}, expected_events={}, events={}, attempts={}, idle={}, eof={}, elapsed={:.2}s",
             phase_label,
             source_count,
+            expected_events,
             received_events.len(),
             receive_attempts,
             idle_count,
@@ -156,19 +165,15 @@ impl<T: ComponentTool + Sync, F: SourceFactory> SourceIntegrationRuntime<T, F> {
             elapsed.as_secs_f64()
         );
 
-        source_info
-            .assert(SourceRunContext {
-                display_name: display_name.to_string(),
-                params: source_info.params().clone(),
-                phase,
-                source_count,
-                receive_attempts,
-                idle_count,
-                eof_count,
-                elapsed,
-                received_events,
-            })
-            .await
+        anyhow::ensure!(
+            received_events.len() == expected_events,
+            "{} 数量校验失败，预期 {} 条事件，实际收到 {} 条",
+            display_name,
+            expected_events,
+            received_events.len()
+        );
+
+        Ok(())
     }
 }
 

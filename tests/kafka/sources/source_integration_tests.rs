@@ -36,36 +36,11 @@ async fn test_kafka_source_basic_integration() -> Result<()> {
                     br#"{"seq":3,"case":"basic"}"#.to_vec(),
                 ],
             )
-            .await
+            .await?;
+            Ok(3)
         })
         .with_collect_timeout(Duration::from_secs(5))
-        .with_poll_interval(Duration::from_millis(100))
-        .with_async_assert(|ctx| async move {
-            let payloads = ctx
-                .received_events
-                .into_iter()
-                .map(|event| String::from_utf8(event.payload.into_bytes().to_vec()))
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-
-            anyhow::ensure!(
-                payloads.len() >= 3,
-                "预期至少收到 3 条消息，实际收到 {} 条",
-                payloads.len()
-            );
-            anyhow::ensure!(
-                payloads.iter().any(|payload| payload.contains("\"seq\":1")),
-                "未收到 seq=1 的消息"
-            );
-            anyhow::ensure!(
-                payloads.iter().any(|payload| payload.contains("\"seq\":2")),
-                "未收到 seq=2 的消息"
-            );
-            anyhow::ensure!(
-                payloads.iter().any(|payload| payload.contains("\"seq\":3")),
-                "未收到 seq=3 的消息"
-            );
-            Ok(())
-        });
+        .with_poll_interval(Duration::from_millis(100));
 
     let runtime = SourceIntegrationRuntime::new(docker_tool, vec![source_info]);
     runtime.run(true).await

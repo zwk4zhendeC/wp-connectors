@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
-use wp_connector_api::{ParamMap, SourceEvent, SourceFactory};
+use wp_connector_api::{ParamMap, SourceFactory};
 
 /// 将任何可序列化对象转换为 ParamMap。
 #[allow(dead_code)]
@@ -33,10 +33,7 @@ pub type AsyncWaitReadyFn =
     Box<dyn Fn(ParamMap) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
 
 pub type AsyncInputFn =
-    Box<dyn Fn(ParamMap) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
-
-pub type AsyncAssertFn =
-    Box<dyn Fn(SourceRunContext) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+    Box<dyn Fn(ParamMap) -> Pin<Box<dyn Future<Output = Result<usize>> + Send>> + Send + Sync>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SourceRunPhase {
@@ -46,7 +43,9 @@ pub enum SourceRunPhase {
 
 #[derive(Clone, Copy, Debug)]
 pub struct SourceCollectConfig {
+    /// collect 阶段的总时间窗口；时间到后停止收集并进入断言。
     pub timeout: Duration,
+    /// 单次轮询未拿到数据时的退避间隔，避免空转占满 CPU。
     pub poll_interval: Duration,
 }
 
@@ -59,29 +58,25 @@ impl Default for SourceCollectConfig {
     }
 }
 
-pub struct SourceRunContext {
-    pub display_name: String,
-    pub params: ParamMap,
-    pub phase: SourceRunPhase,
-    pub source_count: usize,
-    pub receive_attempts: usize,
-    pub idle_count: usize,
-    pub eof_count: usize,
-    pub elapsed: Duration,
-    pub received_events: Vec<SourceEvent>,
-}
-
 /// Source 集成测试信息。
 pub struct SourceInfo<F: SourceFactory> {
+    /// 被测试的 `SourceFactory` 实例。
     factory: F,
+    /// 可选测试名称，用于生成更易读的日志展示名。
     test_name: Option<String>,
+    /// 构建 `SourceSpec` 时使用的参数。
     params: ParamMap,
-    tags: Vec<String>,
+    /// 可选初始化逻辑，通常用于建表、建 topic、清理历史数据等。
     init_fn: Option<AsyncInitFn>,
+    /// 可选就绪检查，用于确认 connector 依赖已经可用。
     wait_ready_fn: Option<AsyncWaitReadyFn>,
+    /// 输入动作，在 source 构建完成后执行，用于向上游送入测试数据。
     input_fn: Option<AsyncInputFn>,
-    assert_fn: Option<AsyncAssertFn>,
+    /// 输入动作的执行次数；总理论输入量为多次执行返回值之和。
+    input_repeat: usize,
+    /// collect 窗口与轮询节奏配置。
     collect_config: SourceCollectConfig,
+    /// 是否在首次运行结束后再执行一轮重启验证。
     restart_verification: bool,
 }
 
@@ -91,11 +86,10 @@ impl<F: SourceFactory> SourceInfo<F> {
             factory,
             test_name: None,
             params,
-            tags: Vec::new(),
             init_fn: None,
             wait_ready_fn: None,
             input_fn: None,
-            assert_fn: None,
+            input_repeat: 1,
             collect_config: SourceCollectConfig::default(),
             restart_verification: false,
         }
@@ -103,11 +97,6 @@ impl<F: SourceFactory> SourceInfo<F> {
 
     pub fn with_test_name(mut self, test_name: impl Into<String>) -> Self {
         self.test_name = Some(test_name.into());
-        self
-    }
-
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
-        self.tags = tags;
         self
     }
 
@@ -135,20 +124,14 @@ impl<F: SourceFactory> SourceInfo<F> {
         input_fn: impl Fn(ParamMap) -> Fut + Send + Sync + 'static,
     ) -> Self
     where
-        Fut: Future<Output = Result<()>> + Send + 'static,
+        Fut: Future<Output = Result<usize>> + Send + 'static,
     {
         self.input_fn = Some(Box::new(move |params| Box::pin(input_fn(params))));
         self
     }
 
-    pub fn with_async_assert<Fut>(
-        mut self,
-        assert_fn: impl Fn(SourceRunContext) -> Fut + Send + Sync + 'static,
-    ) -> Self
-    where
-        Fut: Future<Output = Result<()>> + Send + 'static,
-    {
-        self.assert_fn = Some(Box::new(move |ctx| Box::pin(assert_fn(ctx))));
+    pub fn with_input_repeat(mut self, input_repeat: usize) -> Self {
+        self.input_repeat = input_repeat.max(1);
         self
     }
 
@@ -175,10 +158,6 @@ impl<F: SourceFactory> SourceInfo<F> {
         &self.params
     }
 
-    pub fn tags(&self) -> &[String] {
-        &self.tags
-    }
-
     pub fn test_name(&self) -> Option<&str> {
         self.test_name.as_deref()
     }
@@ -189,6 +168,10 @@ impl<F: SourceFactory> SourceInfo<F> {
 
     pub fn restart_verification(&self) -> bool {
         self.restart_verification
+    }
+
+    pub fn input_repeat(&self) -> usize {
+        self.input_repeat
     }
 
     pub async fn init(&self) -> Result<()> {
@@ -205,17 +188,10 @@ impl<F: SourceFactory> SourceInfo<F> {
         Ok(())
     }
 
-    pub async fn input(&self) -> Result<()> {
+    pub async fn input(&self) -> Result<usize> {
         if let Some(input_fn) = &self.input_fn {
-            input_fn(self.params.clone()).await?;
+            return input_fn(self.params.clone()).await;
         }
-        Ok(())
-    }
-
-    pub async fn assert(&self, ctx: SourceRunContext) -> Result<()> {
-        if let Some(assert_fn) = &self.assert_fn {
-            assert_fn(ctx).await?;
-        }
-        Ok(())
+        Ok(0)
     }
 }
