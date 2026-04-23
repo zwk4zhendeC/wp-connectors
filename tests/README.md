@@ -302,7 +302,7 @@ runtime.run(true).await?;
 
 ```bash
 # 全部 sink 集成测试
-cargo test --tests --features external_integration integration_tests:: -- --nocapture --ignored
+cargo test --tests --features external_integration integration_tests:: -- --nocapture --ignored --test-threads=1
 
 # 全部 sink 性能测试
 cargo test --release --tests --features external_performance performance_tests:: -- --nocapture --ignored
